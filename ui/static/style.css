@@ -400,6 +400,29 @@ td.value {
 .form__hint { margin: 0; font-size: var(--style-text-xs); color: var(--style-text-muted); }
 
 /* Terminal output */
+.deploy-status {
+  margin: 0 0 var(--style-spacing-4);
+  font-family: var(--style-font-mono);
+  font-size: var(--style-text-xs);
+  line-height: var(--style-leading-normal);
+  color: var(--style-text-secondary);
+  word-break: break-word;
+}
+.deploy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--style-spacing-2);
+  margin-bottom: var(--style-spacing-4);
+}
+.form__section {
+  margin: var(--style-spacing-4) 0 var(--style-spacing-3);
+  font-size: var(--style-text-sm);
+  font-weight: 600;
+  color: var(--style-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
 .output {
   margin: 0;
   padding: var(--style-spacing-4);

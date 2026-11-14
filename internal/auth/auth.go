@@ -2,8 +2,8 @@ package auth
 
 import (
 	"crypto/rand"
-	"net/http"
 	"encoding/hex"
+	"net/http"
 	"os"
 	"sync"
 

@@ -20,8 +20,8 @@ func canned(t *testing.T, body string, code int) *httptest.Server {
 			t.Errorf("Authorization = %q", got)
 		}
 		var req struct {
-			Model     string    `json:"model"`
-			Messages  []Message `json:"messages"`
+			Model    string    `json:"model"`
+			Messages []Message `json:"messages"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Errorf("decode request: %v", err)

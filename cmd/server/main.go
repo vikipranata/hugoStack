@@ -11,12 +11,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"hugostack/internal/auth"
 	"hugostack/internal/browser"
 	"hugostack/internal/config"
+	"hugostack/internal/git"
 	"hugostack/internal/llm"
 )
 
@@ -25,6 +27,7 @@ var cfg *config.Config
 var langFiles = map[string]string{"en": "index.md", "id": "index.id.md"}
 
 func main() {
+	bootstrapConfig()
 	var err error
 	cfg, err = config.Load()
 	if err != nil {
@@ -44,6 +47,9 @@ func main() {
 	mux.HandleFunc("/api/posts", handleAPIPosts)
 	mux.HandleFunc("/api/posts/", handleAPISinglePost)
 	mux.HandleFunc("/api/translate/", handleTranslate)
+	mux.HandleFunc("/api/git/status", handleGitStatus)
+	mux.HandleFunc("/api/git/commit", handleGitCommit)
+	mux.HandleFunc("/api/git/push", handleGitPush)
 	mux.HandleFunc("/edit/", handleEdit)
 	mux.HandleFunc("/post/", handlePostAsset)
 	mux.HandleFunc("/upload/", handleUpload)
@@ -82,6 +88,14 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	data := newShellData("Posts", "Posts", "posts")
 	data.Posts = posts
+	data.BranchPages, data.BranchRelease = cfg.BranchPages, cfg.BranchRelease
+	if st, err := git.Status(cfg.HugoPath, cfg.GitUser, cfg.GitEmail); err != nil {
+		data.GitError = err.Error()
+	} else {
+		data.GitBranch, data.GitAhead, data.GitBehind, data.GitDirty = st.Branch, st.Ahead, st.Behind, st.DirtyFiles
+		data.GitUpstream = st.HasUpstream
+	}
+	data.PageJS = template.JS(fmt.Sprintf(deployJS, cfg.BranchPages, cfg.BranchRelease))
 	pages["index"].ExecuteTemplate(w, "shell", data)
 }
 
@@ -98,6 +112,24 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		if key != "" { // empty key field = keep current key (masked in the form)
 			cfg.LLMAPIKey = key
 		}
+		bp := strings.TrimSpace(r.FormValue("branch_pages"))
+		br := strings.TrimSpace(r.FormValue("branch_release"))
+		if bp != "" && !git.ValidRef(bp) {
+			http.Error(w, "branch_pages: invalid ref", http.StatusBadRequest)
+			return
+		}
+		if br != "" && !git.ValidRef(br) {
+			http.Error(w, "branch_release: invalid ref", http.StatusBadRequest)
+			return
+		}
+		if bp != "" {
+			cfg.BranchPages = bp
+		}
+		if br != "" {
+			cfg.BranchRelease = br
+		}
+		cfg.GitUser = strings.TrimSpace(r.FormValue("git_user"))
+		cfg.GitEmail = strings.TrimSpace(r.FormValue("git_email"))
 		if err := config.Save(cfg); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -106,11 +138,12 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := newShellData("Settings", "Settings", "settings")
-	data.BannerTitle = "Default admin password is \"admin\""
-	data.BannerCopy = "Change it: run `go run ./cmd/setpass 'newpass'` and put the printed hash into config.json (admin_pass), then restart."
+	data.BannerTitle = "Default admin password is \"admin\" (or HUGOSTACK_ADMIN_PASS in Docker)"
+	data.BannerCopy = "Change it: run `go run ./cmd/setpass 'newpass'` and put the printed hash into config.json (admin_pass), then restart. In Docker, first-run bootstrap reads HUGOSTACK_ADMIN_PASS."
 	data.HugoPath, data.Port, data.AdminUser = cfg.HugoPath, cfg.Port, cfg.AdminUser
 	data.LLMBaseURL, data.LLMModel, data.LLMKeySet = cfg.LLMBaseURL, cfg.LLMModel, cfg.LLMAPIKey != ""
 	data.LLMReady = llmReady()
+	data.BranchPages, data.BranchRelease, data.GitUser, data.GitEmail = cfg.BranchPages, cfg.BranchRelease, cfg.GitUser, cfg.GitEmail
 	pages["settings"].ExecuteTemplate(w, "shell", data)
 }
 
@@ -606,4 +639,110 @@ func fileExists(p string) bool {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
+}
+
+// ---- git & deploy (Story 4.2/4.3) ----
+//
+// The deploy panel renders git output in a .output block; every handler
+// returns JSON {ok, output} and hands git's combined stdout+stderr
+// through verbatim (users need to see auth/SSH failures).
+
+func handleGitStatus(w http.ResponseWriter, r *http.Request) {
+	st, err := git.Status(cfg.HugoPath, cfg.GitUser, cfg.GitEmail)
+	if err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, map[string]any{
+		"ok": true, "branch": st.Branch, "dirty": st.DirtyFiles,
+		"ahead": st.Ahead, "behind": st.Behind, "upstream": st.HasUpstream,
+	})
+}
+
+func handleGitCommit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var in struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(in.Message) == "" {
+		http.Error(w, "commit message required", http.StatusBadRequest)
+		return
+	}
+	res := git.Commit(cfg.HugoPath, in.Message, cfg.GitUser, cfg.GitEmail)
+	writeJSON(w, map[string]any{"ok": res.OK, "output": res.Output})
+}
+
+func handleGitPush(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ref := r.URL.Query().Get("ref")
+	if !git.ValidRef(ref) {
+		http.Error(w, "invalid ref", http.StatusBadRequest)
+		return
+	}
+	res := git.Push(cfg.HugoPath, ref, cfg.GitUser, cfg.GitEmail)
+	writeJSON(w, map[string]any{"ok": res.OK, "output": res.Output})
+}
+
+// ---- first-run bootstrap (Story 4.4) ----
+
+// bootstrapConfig: Docker out-of-the-box flow. If HUGOSTACK_ADMIN_PASS is
+// set and config.json is missing or has an empty admin_pass, create/patch
+// the config with the bcrypt-hashed password. A file that already holds a
+// password is left alone — Settings is the change path after first run.
+func bootstrapConfig() {
+	pass := os.Getenv("HUGOSTACK_ADMIN_PASS")
+	if pass == "" {
+		return
+	}
+	p := config.Path()
+	var c config.Config
+	if data, err := os.ReadFile(p); err == nil {
+		if err := json.Unmarshal(data, &c); err != nil {
+			log.Fatalf("bootstrap: %s is not valid JSON: %v", p, err)
+		}
+		if c.AdminPass != "" {
+			return
+		}
+	} else {
+		c.HugoPath = envOr("HUGOSTACK_HUGO_PATH", "/hugo")
+		c.Port = envIntOr("HUGOSTACK_PORT", 8080)
+		c.AdminUser = "admin"
+	}
+	if c.AdminUser == "" {
+		c.AdminUser = "admin"
+	}
+	hash, err := auth.HashPassword(pass)
+	if err != nil {
+		log.Fatalf("bootstrap: %v", err)
+	}
+	c.AdminPass = hash
+	if err := config.Save(&c); err != nil {
+		log.Fatalf("bootstrap: %v", err)
+	}
+	log.Printf("bootstrap: wrote %s (admin_pass from HUGOSTACK_ADMIN_PASS, hugo_path %q, port %d)", p, c.HugoPath, c.Port)
+}
+
+func envOr(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
+}
+
+func envIntOr(k string, def int) int {
+	v, err := strconv.Atoi(os.Getenv(k))
+	if err != nil || v <= 0 {
+		return def
+	}
+	return v
 }

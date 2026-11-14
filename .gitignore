@@ -28,6 +28,9 @@ go.work.sum
 # env file
 .env
 
+# config holds the bcrypt admin hash + LLM key after first save
+config.json
+
 # Editor/IDE
 # .idea/
 # .vscode/

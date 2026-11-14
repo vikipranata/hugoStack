@@ -1,0 +1,18 @@
+services:
+  hugostack:
+    build: .
+    container_name: hugostack
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      # Host hugo repo, bind-mounted at /hugo (matches HUGOSTACK_HUGO_PATH).
+      # Real path on this machine:
+      - /mnt/dataStorage/shared/repository/vikipranata:/hugo
+      # --- git push credentials (pick one) ---------------------------------
+      # Option A: mount the host SSH key (remote is git@github.com:...):
+      #   - ~/.ssh:/root/.ssh:ro
+      # Option B: no mount — use a token remote instead:
+      #   git remote set-url origin https://<token>@github.com/vikipranata/vikipranata.git
+      # Without either, "Sync to Pages"/"Release" fail with the SSH auth
+      # error shown verbatim in the deploy panel.

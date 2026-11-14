@@ -1,0 +1,13 @@
+{
+  "hugo_path": "/path/to/hugo-repo",
+  "port": 8080,
+  "admin_user": "admin",
+  "admin_pass": "",
+  "llm_base_url": "",
+  "llm_api_key": "",
+  "llm_model": "",
+  "git_user": "",
+  "git_email": "",
+  "branch_pages": "main",
+  "branch_release": "hugo"
+}
