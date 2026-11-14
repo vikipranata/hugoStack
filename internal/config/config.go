@@ -11,6 +11,10 @@ type Config struct {
 	Port      int    `json:"port"`
 	AdminUser string `json:"admin_user"`
 	AdminPass string `json:"admin_pass"` // Bcrypt hash
+	// Story 3.1: OpenAI-compatible LLM endpoint (empty = LLM disabled)
+	LLMBaseURL string `json:"llm_base_url"`
+	LLMAPIKey  string `json:"llm_api_key"`
+	LLMModel   string `json:"llm_model"`
 }
 
 var (

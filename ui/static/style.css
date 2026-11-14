@@ -367,6 +367,38 @@ td.value {
 .error__title { margin: 0 0 4px; font-weight: 600; }
 .error__copy { margin: 0; font-size: var(--style-text-sm); color: var(--style-text-secondary); word-break: break-word; }
 
+.banner {
+  margin-bottom: var(--style-spacing-4);
+  padding: var(--style-spacing-4);
+  background: var(--style-bg-brand-soft);
+  border: 1px solid var(--style-border-default);
+  border-left: 3px solid var(--style-border-brand);
+  border-radius: var(--style-radius-md);
+}
+.banner__title { margin: 0 0 4px; font-weight: 600; }
+.banner__copy { margin: 0; font-size: var(--style-text-sm); color: var(--style-text-secondary); word-break: break-word; }
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  border: 2px solid var(--style-border-default);
+  border-top-color: var(--style-text-brand);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.form__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--style-spacing-5);
+}
+.form__head h2 { margin: 0; font-size: var(--style-text-xl); font-weight: 700; letter-spacing: -0.02em; }
+.form__hint { margin: 0; font-size: var(--style-text-xs); color: var(--style-text-muted); }
+
 /* Terminal output */
 .output {
   margin: 0;

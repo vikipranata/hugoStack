@@ -10,8 +10,10 @@
     <td><a href="/edit/{{.Slug}}?lang={{if .HasEN}}en{{else}}id{{end}}">{{.Title}}</a></td>
     <td class="name">{{.Slug}}</td>
     <td>
-      {{if .HasEN}}<span class="chip chip--success">EN</span> {{end}}
-      {{if .HasID}}<span class="chip chip--success">ID</span>{{else if not .HasEN}}<span class="chip chip--danger">none</span>{{end}}
+      {{if and .HasEN .HasID}}<span class="chip chip--success">Bilingual</span>
+      {{else if .HasEN}}<span class="chip">EN only</span>
+      {{else if .HasID}}<span class="chip">ID only</span>
+      {{else}}<span class="chip chip--danger">none</span>{{end}}
     </td>
     <td><a href="/edit/{{.Slug}}?lang={{if .HasEN}}en{{else}}id{{end}}">Edit</a></td>
   </tr>

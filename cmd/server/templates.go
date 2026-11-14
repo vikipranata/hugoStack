@@ -27,6 +27,14 @@ type shellData struct {
 	Lang         string
 	FileName     string
 	Langs        []string
+	IsNew        bool // target file does not exist yet (unsaved draft)
+	LLMReady     bool // LLM config complete -> show translate button
+	TargetLang   string
+	// settings (LLM form)
+	LLMBaseURL string
+	LLMAPIKey  string
+	LLMModel   string
+	LLMKeySet  bool
 	TitleDisplay string
 	TitleValue   string
 	TagsCSV      string
@@ -65,13 +73,13 @@ func initTemplates() error {
 
 var pageCSS template.CSS
 
-// editorJS is the editor page script. Args: slug, lang.
+// editorJS is the editor page script. Args: slug, lang, llmReady, target.
 // ponytail: live preview (marked.js CDN) instead of a full WYSIWYG
 // rich-text library — no build step, one CDN tag. Upgrade path:
 // CodeMirror 6 if syntax highlighting becomes a real need.
 const editorJS = `
 (function () {
-  var SLUG = %q, LANG = %q;
+  var SLUG = %q, LANG = %q, LLM_READY = %t, TARGET = %q;
   var src = document.getElementById("editor-src");
   var preview = document.getElementById("editor-preview");
   var bMd = document.getElementById("view-md");
@@ -151,6 +159,30 @@ const editorJS = `
     var f = Array.from(e.dataTransfer.files).find(function (f) { return f.type.indexOf("image/") === 0; });
     if (f) { uploadFile(f).catch(function (er) { status.textContent = "Upload failed: " + er.message; }); }
   });
+  // Translated draft handoff: the translate button stashes the result in
+  // sessionStorage and redirects here; load it into the form as an unsaved
+  // draft (story 3.3). Nothing is saved until the user hits Save.
+  var draftKey = "hugostack-draft:" + SLUG + ":" + LANG;
+  var rawDraft = sessionStorage.getItem(draftKey);
+  if (rawDraft) {
+    sessionStorage.removeItem(draftKey);
+    try {
+      var d = JSON.parse(rawDraft);
+      document.getElementById("f-title").value = d.title || "";
+      document.getElementById("f-tags").value = (d.tags || []).join(", ");
+      document.getElementById("f-desc").value = d.description || "";
+      src.value = d.body || "";
+      var db = document.getElementById("draft-banner");
+      if (db) {
+        db.hidden = false;
+        var bt = db.querySelector(".banner__title");
+        if (bt) { bt.textContent = "Translated draft — review then Save"; }
+      }
+      status.textContent = "Draft loaded — not saved yet";
+      if (view === "preview") { render(); }
+    } catch (e) { status.textContent = "Draft load failed: " + e.message; }
+  }
+
   // paste image from clipboard -> base64 -> uploads/
   src.addEventListener("paste", function (e) {
     var items = e.clipboardData ? e.clipboardData.items : [];
@@ -164,5 +196,32 @@ const editorJS = `
       }
     }
   });
+
+  // Story 3.3: translate button (rendered only when LLM config is set).
+  // POSTs to /api/translate/<slug>, stashes the returned draft, then opens
+  // the target-lang editor which loads it as an unsaved draft. No auto-save.
+  var tBtn = document.getElementById("translate-btn");
+  if (tBtn) {
+    tBtn.addEventListener("click", function () {
+      var orig = tBtn.innerHTML;
+      tBtn.disabled = true;
+      tBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Translating…';
+      status.textContent = "Translating…";
+      fetch("/api/translate/" + SLUG + "?lang=" + LANG, { method: "POST", credentials: "same-origin" })
+        .then(function (res) {
+          if (!res.ok) { return res.text().then(function (t) { throw new Error(t); }); }
+          return res.json();
+        })
+        .then(function (d) {
+          sessionStorage.setItem("hugostack-draft:" + SLUG + ":" + d.lang, JSON.stringify(d));
+          location.href = "/edit/" + SLUG + "?lang=" + d.lang;
+        })
+        .catch(function (e) {
+          tBtn.disabled = false;
+          tBtn.innerHTML = orig;
+          status.textContent = "Translate failed: " + e.message;
+        });
+    });
+  }
 })();
 `

@@ -24,6 +24,17 @@
     </div>
   </div>
 </div>
+{{if .IsNew}}
+<div class="banner" id="draft-banner" role="alert">
+  <p class="banner__title">New {{.Lang}} draft</p>
+  <p class="banner__copy">content/posts/{{.Slug}}/{{.FileName}} does not exist yet — Save creates it.</p>
+</div>
+{{else}}
+<div class="banner" id="draft-banner" role="alert" hidden>
+  <p class="banner__title">Translated draft — review then Save</p>
+  <p class="banner__copy">The translation below is not saved yet.</p>
+</div>
+{{end}}
 <div class="card editor" id="editor">
   <div class="editor__toolbar">
     <div class="editor__views" role="group" aria-label="Editor view">
@@ -32,6 +43,7 @@
     </div>
     <div class="editor__tools">
       <input type="file" id="up-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      {{if .LLMReady}}<button class="btn btn--ghost btn--sm" id="translate-btn" type="button">Translate to {{.TargetLang}}</button>{{end}}
       <button class="btn btn--ghost btn--sm" id="up-btn" type="button">Upload image</button>
       <span class="save-status" id="save-status" role="status"></span>
       <button class="btn btn--primary" id="save-btn" type="button">Save</button>

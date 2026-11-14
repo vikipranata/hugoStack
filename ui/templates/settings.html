@@ -7,6 +7,28 @@
   <tr><td class="name">port</td><td class="value">{{.Port}}</td></tr>
   <tr><td class="name">admin_user</td><td class="value">{{.AdminUser}}</td></tr>
   </tbody>
-</table></div></div>
+)</table></div></div>
+<div class="card form-card">
+  <div class="form__head">
+    <h2>LLM translation</h2>
+    {{if .LLMReady}}<span class="chip chip--success">Configured</span>{{else}}<span class="chip chip--danger">Not configured</span>{{end}}
+  </div>
+  <form class="form" method="post" action="/settings">
+    <div class="field">
+      <label class="field__label" for="llm_base_url">Base URL</label>
+      <input id="llm_base_url" name="llm_base_url" value="{{.LLMBaseURL}}" placeholder="https://api.openai.com/v1">
+    </div>
+    <div class="field">
+      <label class="field__label" for="llm_api_key">API key</label>
+      <input id="llm_api_key" name="llm_api_key" type="password" value="" autocomplete="new-password" placeholder="{{if .LLMKeySet}}•••••••• (leave blank to keep){{else}}sk-...{{end}}">
+    </div>
+    <div class="field">
+      <label class="field__label" for="llm_model">Model</label>
+      <input id="llm_model" name="llm_model" value="{{.LLMModel}}" placeholder="gpt-4o-mini">
+    </div>
+    <button class="btn btn--primary" type="submit">Save LLM settings</button>
+    <p class="form__hint">Works with any OpenAI-compatible /chat/completions endpoint (OpenAI, local server, proxy router). Translate button in the editor appears once configured.</p>
+  </form>
+</div>
 {{end}}
 

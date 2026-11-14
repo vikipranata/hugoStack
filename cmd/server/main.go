@@ -12,10 +12,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"hugostack/internal/auth"
 	"hugostack/internal/browser"
 	"hugostack/internal/config"
+	"hugostack/internal/llm"
 )
 
 var cfg *config.Config
@@ -41,6 +43,7 @@ func main() {
 	mux.HandleFunc("/settings", handleSettings)
 	mux.HandleFunc("/api/posts", handleAPIPosts)
 	mux.HandleFunc("/api/posts/", handleAPISinglePost)
+	mux.HandleFunc("/api/translate/", handleTranslate)
 	mux.HandleFunc("/edit/", handleEdit)
 	mux.HandleFunc("/post/", handlePostAsset)
 	mux.HandleFunc("/upload/", handleUpload)
@@ -83,10 +86,31 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		base := strings.TrimSpace(r.FormValue("llm_base_url"))
+		model := strings.TrimSpace(r.FormValue("llm_model"))
+		key := r.FormValue("llm_api_key")
+		if base != "" && !strings.HasPrefix(base, "http://") && !strings.HasPrefix(base, "https://") {
+			http.Error(w, "llm_base_url must start with http:// or https://", http.StatusBadRequest)
+			return
+		}
+		cfg.LLMBaseURL, cfg.LLMModel = base, model
+		if key != "" { // empty key field = keep current key (masked in the form)
+			cfg.LLMAPIKey = key
+		}
+		if err := config.Save(cfg); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		return
+	}
 	data := newShellData("Settings", "Settings", "settings")
 	data.BannerTitle = "Default admin password is \"admin\""
 	data.BannerCopy = "Change it: run `go run ./cmd/setpass 'newpass'` and put the printed hash into config.json (admin_pass), then restart."
 	data.HugoPath, data.Port, data.AdminUser = cfg.HugoPath, cfg.Port, cfg.AdminUser
+	data.LLMBaseURL, data.LLMModel, data.LLMKeySet = cfg.LLMBaseURL, cfg.LLMModel, cfg.LLMAPIKey != ""
+	data.LLMReady = llmReady()
 	pages["settings"].ExecuteTemplate(w, "shell", data)
 }
 
@@ -130,13 +154,13 @@ func handleAPISinglePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad slug or lang", http.StatusBadRequest)
 		return
 	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		http.Error(w, "post not found", http.StatusNotFound)
-		return
-	}
 	switch r.Method {
 	case http.MethodGet:
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			http.Error(w, "post not found", http.StatusNotFound)
+			return
+		}
 		_, body, _ := browser.Split(string(raw))
 		writeJSON(w, postJSON{
 			Slug: slug, FileName: langFiles[lang], Lang: lang,
@@ -144,6 +168,8 @@ func handleAPISinglePost(w http.ResponseWriter, r *http.Request) {
 			Description: fmDescription(string(raw)), Body: body,
 		})
 	case http.MethodPut:
+		// No read here on purpose: a missing file is a valid target —
+		// savePost seeds it from the other language (Story 3.2).
 		var in struct {
 			Title       string          `json:"title"`
 			Tags        json.RawMessage `json:"tags"`
@@ -196,7 +222,18 @@ func savePost(slug, lang, title, desc, body string, tags []string) error {
 	}
 	orig, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		if !os.IsNotExist(err) {
+			return err
+		}
+		// Target file missing (first save, e.g. a fresh translation):
+		// seed from the other-language file so date/modified survive;
+		// fall back to a bare scaffold.
+		other := filepath.Join(filepath.Dir(path), langFiles[otherLang(lang)])
+		if b, err := os.ReadFile(other); err == nil {
+			orig = b
+		} else {
+			orig = []byte("---\ntitle: \"\"\ndate: " + time.Now().Format("2006-01-02") + "\n---\n")
+		}
 	}
 	out, err := browser.Rewrite(string(orig), browser.Frontmatter{Title: title, Tags: tags, Description: desc}, body)
 	if err != nil {
@@ -261,14 +298,20 @@ func handleEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	raw, err := os.ReadFile(path)
+	isNew := false
 	if err != nil {
-		http.Error(w, "post not found", http.StatusNotFound)
-		return
+		// Story 3.2: missing target file is a valid state — open an
+		// empty draft editor; Save (savePost) creates the file.
+		if !os.IsNotExist(err) {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		isNew = true
 	}
 	_, body, _ := browser.Split(string(raw))
 	langList := []string{}
 	for _, l := range []string{"en", "id"} {
-		if _, err := os.Stat(filepath.Join(filepath.Dir(path), langFiles[l])); err == nil {
+		if (isNew && l == lang) || fileExists(filepath.Join(filepath.Dir(path), langFiles[l])) {
 			langList = append(langList, l)
 		}
 	}
@@ -282,7 +325,13 @@ func handleEdit(w http.ResponseWriter, r *http.Request) {
 	data.TagsCSV = strings.Join(browser.TagsOf(string(raw)), ", ")
 	data.DescValue = fmDescription(string(raw))
 	data.BodyText = body
-	data.PageJS = template.JS(fmt.Sprintf(editorJS, slug, lang))
+	data.IsNew = isNew
+	data.LLMReady = llmReady()
+	data.TargetLang = otherLang(lang)
+	if isNew {
+		data.TitleDisplay = "New " + lang + " draft"
+	}
+	data.PageJS = template.JS(fmt.Sprintf(editorJS, slug, lang, llmReady(), otherLang(lang)))
 	pages["editor"].ExecuteTemplate(w, "shell", data)
 }
 
@@ -413,6 +462,119 @@ func safeFileName(name string) string {
 		return "image.png"
 	}
 	return name
+}
+
+// ---- LLM translation (Story 3.2) ----
+//
+// POST /api/translate/<slug>?lang=en -> full translated target-language
+// markdown (frontmatter + body) as JSON. Nothing is written to disk: the
+// editor loads it as an unsaved draft and the normal save flow persists it.
+
+func llmReady() bool {
+	return cfg.LLMBaseURL != "" && cfg.LLMAPIKey != "" && cfg.LLMModel != ""
+}
+
+var langNames = map[string]string{"en": "English", "id": "Indonesian"}
+
+func otherLang(l string) string {
+	if l == "en" {
+		return "id"
+	}
+	return "en"
+}
+
+func translateSystemPrompt(from, to string) string {
+	return "You are a strict technical translator. Translate the provided Markdown document " +
+		"(a Hugo post with YAML frontmatter) from " + langNames[from] + " to " + langNames[to] + ". Rules: " +
+		"- Translate only the frontmatter fields \"title\" and \"description\". Keep \"tags\" untranslated. " +
+		"Keep \"date\", \"modified\" and every other frontmatter field exactly as-is. " +
+		"- Translate prose only. Keep ALL Markdown syntax exactly: headings, lists, emphasis, code blocks " +
+		"(do not translate code inside them), tables, link URLs, image paths and references, HTML comments, " +
+		"frontmatter delimiters. Translate link text and image alt text. " +
+		"- Do not add, remove or reorder sections. No commentary, no preamble, no notes. " +
+		"- Output the complete translated document: start with the first \"---\" frontmatter line and end " +
+		"with the last body line. Do not wrap the output in a markdown code fence."
+}
+
+// stripOuterFence removes one wrapping ``` fence if the model added one.
+func stripOuterFence(s string) string {
+	t := strings.TrimSpace(s)
+	if !strings.HasPrefix(t, "```") {
+		return s
+	}
+	nl := strings.IndexByte(t, '\n')
+	if nl == -1 {
+		return s
+	}
+	tail := strings.TrimSuffix(t[nl+1:], "\n")
+	if strings.HasSuffix(tail, "```") {
+		return strings.TrimRight(tail[:len(tail)-3], "\n")
+	}
+	return s
+}
+
+func handleTranslate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	slug := strings.TrimPrefix(r.URL.Path, "/api/translate/")
+	if slug == "" || strings.Contains(slug, "/") {
+		http.Error(w, "bad slug", http.StatusBadRequest)
+		return
+	}
+	lang := r.URL.Query().Get("lang")
+	if lang == "" {
+		lang = "en"
+	}
+	if _, ok := langFiles[lang]; !ok {
+		http.Error(w, "lang must be en or id", http.StatusBadRequest)
+		return
+	}
+	if !llmReady() {
+		http.Error(w, "LLM not configured — set base URL, API key and model in Settings", http.StatusServiceUnavailable)
+		return
+	}
+	path, ok := postFile(cfg.HugoPath, slug, lang)
+	if !ok {
+		http.Error(w, "bad slug or lang", http.StatusBadRequest)
+		return
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		http.Error(w, "post not found", http.StatusNotFound)
+		return
+	}
+	target := otherLang(lang)
+	out, err := llm.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel).Chat(r.Context(), []llm.Message{
+		{Role: "system", Content: translateSystemPrompt(lang, target)},
+		{Role: "user", Content: string(raw)},
+	})
+	if err != nil {
+		http.Error(w, "translation failed: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	out = stripOuterFence(out)
+	if _, _, ok := browser.Split(out); !ok {
+		// Refuse to hand back a doc without frontmatter: the save flow
+		// (browser.Rewrite) requires it, and a silent fallback would
+		// quietly lose the translated title/description.
+		http.Error(w, "LLM response missing frontmatter", http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, map[string]any{
+		"slug": slug, "lang": target,
+		"content":     out,
+		"title":       browser.TitleOf(out),
+		"tags":        browser.TagsOf(out),
+		"description": fmDescription(out),
+		"body":        bodyOf(out),
+	})
+}
+
+func bodyOf(content string) string {
+	_, body, _ := browser.Split(content)
+	return body
 }
 
 // ---- shared helpers ----
