@@ -1,0 +1,78 @@
+{{define "shell"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HugoStack · {{.Title}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>{{.CSS}}</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar__left">
+    {{if not .NoNav}}
+    <button class="hamburger" type="button" aria-label="Toggle module menu" aria-expanded="true" aria-controls="module-menu">
+      <span class="hamburger__line"></span>
+      <span class="hamburger__line"></span>
+      <span class="hamburger__line"></span>
+    </button>
+    {{end}}
+    <div class="topbar__brand">Hugo<em>Stack</em></div>
+  </div>
+</header>
+<div class="shell" data-menu="open">
+  {{if not .NoNav}}
+  <aside class="sidebar" id="module-menu">
+    <nav class="sidebar__nav" aria-label="Modules">
+      <a class="nav-item{{if eq .Active "posts"}} is-active{{end}}" href="/">Posts</a>
+      <a class="nav-item{{if eq .Active "settings"}} is-active{{end}}" href="/settings">Settings</a>
+    </nav>
+  </aside>
+  {{end}}
+  <main class="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Hugo</a>
+      {{if .BreadcrumbCurrent}}<span class="breadcrumb__sep">/</span><span class="breadcrumb__current">{{.BreadcrumbCurrent}}</span>{{end}}
+    </nav>
+    {{if .BannerTitle}}
+    <div class="error" role="alert">
+      <p class="error__title">{{.BannerTitle}}</p>
+      <p class="error__copy">{{.BannerCopy}}</p>
+    </div>
+    {{end}}
+    {{template "body" .}}
+  </main>
+</div>
+<script>
+(function () {
+  var shell = document.querySelector(".shell");
+  var btn = document.querySelector(".hamburger");
+  if (!shell || !btn) { return; }
+  var mq = window.matchMedia("(min-width: 901px)");
+  function setState(open) {
+    shell.dataset.menu = open ? "open" : "closed";
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  function sync() { setState(mq.matches); }
+  btn.addEventListener("click", function () {
+    setState(shell.dataset.menu !== "open");
+  });
+  if (mq.addEventListener) { mq.addEventListener("change", sync); }
+  else { mq.addListener(sync); }
+  document.querySelectorAll(".nav-item").forEach(function (a) {
+    a.addEventListener("click", function () {
+      if (!mq.matches) { setState(false); }
+    });
+  });
+  sync();
+})();
+</script>
+{{if .PageJS}}
+<script>{{.PageJS}}</script>
+{{end}}
+</body>
+</html>
+{{end}}

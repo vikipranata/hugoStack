@@ -1,0 +1,12 @@
+{{define "body"}}
+<div class="pageheader"><div><h1>Settings</h1><p class="pageheader__desc">Server configuration (config.json)</p></div></div>
+<div class="card"><div class="table-wrap"><table>
+  <thead><tr><th>Key</th><th>Value</th></tr></thead>
+  <tbody>
+  <tr><td class="name">hugo_path</td><td class="value">{{.HugoPath}}</td></tr>
+  <tr><td class="name">port</td><td class="value">{{.Port}}</td></tr>
+  <tr><td class="name">admin_user</td><td class="value">{{.AdminUser}}</td></tr>
+  </tbody>
+</table></div></div>
+{{end}}
+

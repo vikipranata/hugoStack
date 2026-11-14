@@ -1,0 +1,24 @@
+{{define "body"}}
+<div class="pageheader">
+  <div><h1>Posts</h1><p class="pageheader__desc">Page bundles under content/posts/</p></div>
+</div>
+<div class="card"><div class="table-wrap"><table>
+  <thead><tr><th>Title</th><th>Slug</th><th>Languages</th><th></th></tr></thead>
+  <tbody>
+  {{range .Posts}}
+  <tr>
+    <td><a href="/edit/{{.Slug}}?lang={{if .HasEN}}en{{else}}id{{end}}">{{.Title}}</a></td>
+    <td class="name">{{.Slug}}</td>
+    <td>
+      {{if .HasEN}}<span class="chip chip--success">EN</span> {{end}}
+      {{if .HasID}}<span class="chip chip--success">ID</span>{{else if not .HasEN}}<span class="chip chip--danger">none</span>{{end}}
+    </td>
+    <td><a href="/edit/{{.Slug}}?lang={{if .HasEN}}en{{else}}id{{end}}">Edit</a></td>
+  </tr>
+  {{else}}
+  <tr><td colspan="4"><div class="empty"><p class="empty__title">No posts</p><p class="empty__copy">content/posts/ is empty</p></div></td></tr>
+  {{end}}
+  </tbody>
+</table></div></div>
+{{end}}
+

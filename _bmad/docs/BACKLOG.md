@@ -6,11 +6,11 @@
 - **Story 1.3**: Implement Bcrypt session authentication.
 - **Story 1.4**: Create Dockerfile and docker-compose.yaml for local dev.
 
-## Epic 2: Content Management (The Editor)
-- **Story 2.1**: Implement filesystem scanner to list Hugo posts.
-- **Story 2.2**: Build Hybrid Editor UI (Markdown $\leftrightarrow$ WYSIWYG) using vq-design-system.
-- **Story 2.3**: Implement API for reading/writing `.md` files.
-- **Story 2.4**: Implement asset upload to page bundle `uploads/` folder.
+## Epic 2: Content Management (The Editor) — DONE
+- **Story 2.1**: Implement filesystem scanner to list Hugo posts. [done] slug + title + has_en/has_id
+- **Story 2.2**: Build Hybrid Editor UI (Markdown $\leftrightarrow$ WYSIWYG) using vq-design-system. [done] markdown source + live preview (marked.js CDN); EN/ID switcher; image upload/paste/drop
+- **Story 2.3**: Implement API for reading/writing `.md` files. [done] GET/PUT /api/posts/<slug>?lang=en|id + HTML /edit/<slug> form save; frontmatter fields surgically rewritten, line endings preserved
+- **Story 2.4**: Implement asset upload to page bundle `uploads/` folder. [done] multipart + base64 JSON, unique names, returns insertable markdown snippet
 
 ## Epic 3: LLM Translation Workflow
 - **Story 3.1**: Integrate LLM API client (OpenAI/Anthropic).

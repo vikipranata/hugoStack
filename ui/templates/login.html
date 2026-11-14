@@ -1,0 +1,11 @@
+{{define "body"}}
+<div class="card form-card">
+  <h2 style="margin:0 0 16px">Sign in</h2>
+  <form class="form" method="POST">
+    <div class="field"><label class="field__label" for="user">User</label><input id="user" name="user" autocomplete="username"></div>
+    <div class="field"><label class="field__label" for="pass">Password</label><input id="pass" name="pass" type="password" autocomplete="current-password"></div>
+    <div class="actions"><button class="btn btn--primary" type="submit">Login</button></div>
+  </form>
+</div>
+{{end}}
+

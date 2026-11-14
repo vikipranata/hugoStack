@@ -1,0 +1,44 @@
+{{define "body"}}
+<div class="pageheader">
+  <div>
+    <h1>{{.TitleDisplay}}</h1>
+    <p class="pageheader__desc">content/posts/{{.Slug}}/{{.FileName}}</p>
+  </div>
+  <div class="actions">
+    {{range .Langs}}<a class="btn btn--sm {{if eq . $.Lang}}btn--primary{{else}}btn--ghost{{end}}" href="/edit/{{$.Slug}}?lang={{.}}">{{.}}</a>{{end}}
+  </div>
+</div>
+<div class="card form-card">
+  <div class="form form--wide">
+    <div class="field">
+      <label class="field__label" for="f-title">Title</label>
+      <input id="f-title" name="title" value="{{.TitleValue}}">
+    </div>
+    <div class="field">
+      <label class="field__label" for="f-tags">Tags</label>
+      <input id="f-tags" name="tags" value="{{.TagsCSV}}" placeholder="comma, separated">
+    </div>
+    <div class="field">
+      <label class="field__label" for="f-desc">Description</label>
+      <input id="f-desc" name="description" value="{{.DescValue}}">
+    </div>
+  </div>
+</div>
+<div class="card editor" id="editor">
+  <div class="editor__toolbar">
+    <div class="editor__views" role="group" aria-label="Editor view">
+      <button class="btn btn--primary btn--sm" id="view-md" type="button" aria-pressed="true">Markdown</button>
+      <button class="btn btn--ghost btn--sm" id="view-preview" type="button" aria-pressed="false">Preview</button>
+    </div>
+    <div class="editor__tools">
+      <input type="file" id="up-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      <button class="btn btn--ghost btn--sm" id="up-btn" type="button">Upload image</button>
+      <span class="save-status" id="save-status" role="status"></span>
+      <button class="btn btn--primary" id="save-btn" type="button">Save</button>
+    </div>
+  </div>
+  <textarea class="editor__src" id="editor-src" spellcheck="false" aria-label="Markdown source">{{.BodyText}}</textarea>
+  <div class="editor__preview markdown" id="editor-preview" hidden></div>
+</div>
+{{end}}
+
