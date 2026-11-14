@@ -1,0 +1,6 @@
+body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f4f4f9; color: #333; margin: 0; }
+.vq-header { background: #fff; padding: 1rem 2rem; border-bottom: 1px solid #ddd; }
+.vq-container { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+.vq-list { list-style: none; padding: 0; }
+.vq-list li { background: #fff; margin-bottom: 0.5rem; padding: 1rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.vq-list a { text-decoration: none; color: #007bff; font-weight: 600; }
