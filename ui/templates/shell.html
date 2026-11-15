@@ -13,30 +13,17 @@
 <body>
 <header class="topbar">
   <div class="topbar__left">
-    {{if not .NoNav}}
-    <button class="hamburger" type="button" aria-label="Toggle module menu" aria-expanded="true" aria-controls="module-menu">
-      <span class="hamburger__line"></span>
-      <span class="hamburger__line"></span>
-      <span class="hamburger__line"></span>
-    </button>
-    {{end}}
     <div class="topbar__brand">Hugo<em>Stack</em></div>
-  </div>
-  {{if not .NoNav}}
-  <div class="topbar__right">
-    <a class="topbar__action" href="/settings">Settings</a>
-    <a class="topbar__action topbar__action--danger" href="/logout">Log out</a>
-  </div>
-  {{end}}
-</header>
-<div class="shell" data-menu="open">
-  {{if not .NoNav}}
-  <aside class="sidebar" id="module-menu">
-    <nav class="sidebar__nav" aria-label="Modules">
-      <a class="nav-item{{if eq .Active "posts"}} is-active{{end}}" href="/">Posts</a>
+    {{if not .NoNav}}
+    <nav class="topbar__nav" aria-label="Main">
+      <a class="topbar__action{{if eq .Active "posts"}} is-active{{end}}" href="/">Posts</a>
+      <a class="topbar__action{{if eq .Active "settings"}} is-active{{end}}" href="/settings">Settings</a>
+      <a class="topbar__action topbar__action--danger" href="/logout">Log out</a>
     </nav>
-  </aside>
-  {{end}}
+    {{end}}
+  </div>
+</header>
+<div class="shell">
   <main class="main">
     {{if not .NoNav}}
     <nav class="breadcrumb" aria-label="Breadcrumb">
@@ -53,30 +40,6 @@
     {{template "body" .}}
   </main>
 </div>
-<script>
-(function () {
-  var shell = document.querySelector(".shell");
-  var btn = document.querySelector(".hamburger");
-  if (!shell || !btn) { return; }
-  var mq = window.matchMedia("(min-width: 901px)");
-  function setState(open) {
-    shell.dataset.menu = open ? "open" : "closed";
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
-  }
-  function sync() { setState(mq.matches); }
-  btn.addEventListener("click", function () {
-    setState(shell.dataset.menu !== "open");
-  });
-  if (mq.addEventListener) { mq.addEventListener("change", sync); }
-  else { mq.addListener(sync); }
-  document.querySelectorAll(".nav-item").forEach(function (a) {
-    a.addEventListener("click", function () {
-      if (!mq.matches) { setState(false); }
-    });
-  });
-  sync();
-})();
-</script>
 {{if .PageJS}}
 <script>{{.PageJS}}</script>
 {{end}}
