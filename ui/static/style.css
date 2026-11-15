@@ -89,7 +89,6 @@ body {
 .topbar__left { display: flex; align-items: center; gap: var(--style-spacing-2); }
 .topbar__brand { font-size: var(--style-text-base); font-weight: 700; letter-spacing: -0.01em; }
 .topbar__brand em { font-style: normal; color: var(--style-text-brand); }
-.topbar__right { display: flex; align-items: center; gap: var(--style-spacing-2); }
 .topbar__action {
   padding: 6px 12px;
   border: 1px solid transparent;
@@ -109,11 +108,14 @@ body {
 .topbar__action.is-active { background: var(--style-bg-brand-soft); color: var(--style-text-brand); font-weight: 600; }
 
 .main {
-  flex: 1;
   min-width: 0;
   max-width: 1440px;
+  margin: 0 auto;
   padding: var(--style-page-padding);
 }
+/* Editor goes full-width while the live preview is visible (toggle flips
+   .is-preview-hidden on #pane-md) - the split view wants the extra room. */
+.main:has(#pane-md:not(.is-preview-hidden)) { max-width: none; margin: 0; }
 
 /* Login: centered card on the remaining viewport (BookStack-style) */
 /* login is the only page whose card must center on the FULL viewport, so
