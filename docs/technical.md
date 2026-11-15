@@ -30,8 +30,7 @@ Stack:
 |---|---|---|
 | Backend | Go 1.27, stdlib only (+ `golang.org/x/crypto/bcrypt`) | single static binary, trivial deploy |
 | Frontend | Vanilla JS, no build step, vq-design-system CSS tokens | zero toolchain |
-| WYSIWYG | TinyMCE 7.6.0, vendored | offline, no CDN |
-| Markdown | CodeMirror 6 (single esbuild bundle) + marked preview + turndown bridge | offline, lossless round-trip |
+| Markdown editor | CodeMirror 6 (single esbuild bundle) + marked live preview | offline, no CDN; the `.md` file is the source of truth (aligns with Hugo) |
 | Auth | bcrypt + HttpOnly session cookie | single-user, no IdP |
 
 ## 2. Data model
@@ -66,11 +65,11 @@ except for three fields:
 Writes are **atomic**: `os.CreateTemp` in the same directory + `os.Rename`, so
 a crash mid-write never leaves a half-written post.
 
-Markdown body is the **single source of truth**. In WYSIWYG mode TinyMCE holds
-HTML; on save (or mode switch) it is converted back to markdown with
-turndown (+ GFM plugin) and the markdown is what gets persisted. Switching
-WYSIWYG ⇄ Markdown is lossless because both directions operate on the same
-markdown string held in editor state.
+The markdown body is the **single source of truth**: CodeMirror edits the
+markdown text directly and Save persists it verbatim — there is no WYSIWYG
+layer to convert back and forth. The live preview renders the current text
+with marked (display-only; `uploads/` image refs are rewritten to
+`/post/<slug>/uploads/` for the browser and never persisted).
 
 ## 3. HTTP API
 
@@ -161,8 +160,8 @@ found, `405` wrong method, `502` LLM failure, `503` LLM not configured).
 The deploy panel (index page) polls `GET /api/git/status` and offers:
 
 - **Commit** — commit pending changes with a message.
-- **Sync to Pages** — commit if dirty, push `branch_pages` (default `main`) → GitHub Pages.
-- **Release** — commit if dirty, push `branch_release` (default `hugo`) → the is-a.dev pipeline.
+- **Push to main** — push the current branch to `branch_pages` (default `main`)
+  → GitHub Pages. This is the whole deploy: no separate release step.
 
 Docker note: bind-mounted repos are host-owned while the container runs as
 root, so the image sets `safe.directory=*` in **`/etc/gitconfig`** (system
@@ -196,36 +195,29 @@ for local-path remotes, which is why it must be system-level. See `Dockerfile`.
 
 `ui/static/app/editor.js` (no build step, loads vendored libs):
 
-- **Two modes, one source of truth.**
-  - WYSIWYG: TinyMCE 7 initialized on the post body.
-  - Markdown: CodeMirror 6 with `@codemirror/lang-markdown` highlighting, plus a
-    live preview pane (marked) with a draggable divider (pointer-capture,
-    clamped 20–80%, arrow-key nudge) and proportional scroll sync.
-  - Switching converts via turndown (WYSIWYG→MD) / marked (MD→WYSIWYG); the
-    markdown string in `state.md` is what Save persists, verbatim.
-- **Image upload in both modes** → `POST /upload/<slug>` (button, paste, and
-  drag-drop). Returns a relative `uploads/<name>` snippet inserted at the
-  cursor. For display, `uploads/` refs are rewritten to
-  `/post/<slug>/uploads/<name>` so preview images load, and rewritten back on
-  save.
+- **Markdown only.** CodeMirror 6 with `@codemirror/lang-markdown` highlighting,
+  plus a live preview pane (marked) with a draggable divider (pointer-capture,
+  clamped 20–80%, arrow-key nudge) and proportional scroll sync. The preview
+  can be hidden via the toolbar toggle to give the editor full width.
+- **Image upload** → `POST /upload/<slug>` (button, paste, and drag-drop).
+  Returns a relative `uploads/<name>` snippet inserted at the cursor. For
+  display, `uploads/` refs are rewritten to `/post/<slug>/uploads/<name>` so
+  preview images load; the doc (and therefore the saved file) keeps the
+  relative form.
 - **Ctrl/Cmd+S** saves; a `beforeunload` guard warns on unsaved changes.
-- Frontmatter lives in the right sidebar (title, description, tags, read-only
-  file path, language chips) on wide viewports; stacks below on narrow ones.
+- Post details live in the **left panel** (title, description, tags, read-only
+  file path, language chips) on wide viewports so the editor keeps maximum
+  width; stacks on top on narrow ones.
 
 ### Vendored libraries (offline, no runtime CDN)
 
 `ui/static/vendor/`:
 
-- `tinymce/` — TinyMCE 7.6.0: core, silver theme, oxide + content skins,
-  `models/dom`, **`icons/default/icons.min.js`** (TinyMCE auto-loads this from
-  its base URL — omitting it 404s and aborts init), 9 plugins (image, table,
-  link, autolink, fullscreen, code, codesample, lists, media).
 - `cm/` — CodeMirror 6 as **one** esbuild bundle (`cm.bundle.js`) + a thin
   `cm.js` entry re-exporting `EditorView`, `basicSetup`, `markdown`,
   `markdownLanguage`, `HighlightStyle`, `syntaxHighlighting`, `tags`.
   Single bundle = single module graph = no dual-instance issues.
 - `marked/` — marked (UMD) for the live preview.
-- `turndown/` — turndown + turndown-plugin-gfm for WYSIWYG→Markdown.
 
 > **CM6 API note (bit us once):** in current `@codemirror/view`,
 > `EditorView.updateListener` is a **Facet**, not a callable static. Use
@@ -245,7 +237,7 @@ in-memory copy and persists via `config.Save`.
 | `port` | Listen port. Restart to change. |
 | `admin_user` / `admin_pass` | `admin_pass` is a bcrypt hash. |
 | `llm_base_url` / `llm_api_key` / `llm_model` | All three required for Translate. |
-| `branch_pages` / `branch_release` | Defaults `main` / `hugo` (filled by `applyDefaults`). |
+| `branch_pages` | Deploy push target (default `main`). |
 | `git_user` / `git_email` | Commit identity. |
 
 **Env precedence** (`config.applyEnv`): `HUGOSTACK_PORT`, `HUGOSTACK_HUGO_PATH`,
@@ -287,10 +279,9 @@ cp .env.template .env && docker compose up -d --build
 
 | Symptom | Cause / fix |
 |---|---|
-| Editor pane blank, no TinyMCE | `icons/default/icons.min.js` missing from vendor → 404 aborts init. Check the vendored icons dir. |
 | Markdown pane never appears | `EditorView.updateListener` called as a function. Must be `.of(fn)`. |
 | `bind: address already in use` | An orphan `go run` child holds the port (killing the `go run` parent orphans the compiled child). Find and kill the child, or use a free port. |
-| Sync/Release fails with an SSH error | No git credentials in the container. Mount `~/.ssh` read-only or switch the remote to a token URL (see README). |
+| Push fails with an SSH error | No git credentials in the container. Mount `~/.ssh` read-only or switch the remote to a token URL (see README). |
 | Logins drop on restart | `HUGOSTACK_SESSION_SECRET` unset → random per-start secret. Set it. |
 | `git: detected dubious ownership` | Host-owned bind mount + root container. The image sets `safe.directory=*` in `/etc/gitconfig`; if you run outside Docker, add it to your system git config. |
 | Config change not taking effect | `port`/`hugo_path` need a restart; Settings-page LLM/git edits apply immediately; direct `config.json` edits apply on next start. |

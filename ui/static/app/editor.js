@@ -1,10 +1,9 @@
-// hugoStack editor — BookStack-style page:
-//   WYSIWYG (TinyMCE 7) | Markdown (CodeMirror 6 + live preview, draggable
-//   divider, proportional scroll sync).
-// Single source of truth: the markdown text. WYSIWYG HTML is converted with
-// turndown + gfm plugin on mode switch and on save, so neither mode can lose
-// content. Relative uploads/ refs are rewritten to /post/<slug>/uploads/
-// for display in both panes and rewritten back before saving.
+// hugoStack editor — markdown-only (BookStack-style page):
+//   CodeMirror 6 + live preview, draggable divider (20-80%), proportional
+//   scroll sync, post-details panel on the left.
+// Single source of truth: the markdown text (CodeMirror doc). Relative
+// uploads/ refs are rewritten to /post/<slug>/uploads/ for display in the
+// preview and rewritten back before saving.
 import {
   EditorView,
   basicSetup,
@@ -23,7 +22,7 @@ const $ = (id) => document.getElementById(id);
 const statusEl = $("save-status");
 const setStatus = (msg) => { statusEl.textContent = msg; };
 
-const state = { md: "", mode: "wysiwyg", dirty: false };
+const state = { md: "", dirty: false };
 let draftLoaded = false;
 let cmView = null;
 
@@ -34,7 +33,7 @@ const divider = $("mdsplit-divider");
 
 function markDirty() { state.dirty = true; }
 
-/* ---------- markdown <-> html (display-side image rewrite) ---------- */
+/* ---------- markdown -> html (display-side image rewrite) ---------- */
 
 function esc(s) {
   const d = document.createElement("div");
@@ -43,55 +42,23 @@ function esc(s) {
 }
 
 function mdToHtml(md) {
-  if (!window.marked) return "<pre>" + esc(md) + "</pre>"; // ponytail: marked missing (should not happen — vendored) -> escaped text
+  if (!window.marked) return "<pre>" + esc(md) + "</pre>"; // ponytail: marked missing (should not happen - vendored) -> escaped text
   return marked.parse(md);
 }
 
 const PUBLIC_UP = "/post/" + SLUG + "/uploads/";
 
-function htmlForDisplay(html) {
-  return html.replace(/(src|href)="uploads\//g, (m, a) => a + '"' + PUBLIC_UP);
-}
-
-function htmlForEditor(md) {
-  return htmlForDisplay(mdToHtml(md));
+function htmlForDisplay(md) {
+  return mdToHtml(md).replace(/(src|href)="uploads\//g, (m, a) => a + '"' + PUBLIC_UP);
 }
 
 function rewriteBack(md) {
   return md.split(PUBLIC_UP).join("uploads/");
 }
 
-/* ---------- turndown: WYSIWYG HTML -> markdown (save path) ---------- */
-
-const td = new TurndownService({
-  headingStyle: "atx",
-  bulletListMarker: "-",
-  codeBlockStyle: "fenced",
-  emDelimiter: "*",
-  hr: "---",
-});
-td.use(turndownPluginGfm.tables);
-td.use(turndownPluginGfm.strikethrough);
-td.use(turndownPluginGfm.taskListItems);
-// ponytail: the vendored gfm plugin emits single-tilde ~text~ (not GFM);
-// addRule unshifts, so this later-registered rule wins and yields ~~text~~.
-td.addRule("gfmStrikethrough", {
-  filter: ["s", "strike", "del"],
-  replacement: (content) => "~~" + content + "~~",
-});
-
-function htmlToMd(html) {
-  return rewriteBack(td.turndown(html));
-}
-
-// Current content as markdown, whichever mode is showing.
+// Current content as markdown (the CodeMirror doc).
 function currentMd() {
-  if (state.mode === "wysiwyg") {
-    const ed = tinymce.get("tinymce-src");
-    if (ed) return htmlToMd(ed.getContent());
-    return state.md;
-  }
-  if (cmView) return cmView.state.doc.toString();
+  if (cmView) return rewriteBack(cmView.state.doc.toString());
   return state.md;
 }
 
@@ -100,7 +67,7 @@ function currentMd() {
 const IMG_EXT = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif" };
 
 async function uploadFile(file) {
-  setStatus("Uploading " + file.name + "…");
+  setStatus("Uploading " + file.name + "...");
   const fd = new FormData();
   fd.append("file", file);
   const res = await fetch("/upload/" + SLUG, { method: "POST", body: fd, credentials: "same-origin" });
@@ -121,68 +88,7 @@ function fileFromClipboardItem(item) {
   return new File([blob], "pasted" + ext, { type: blob.type });
 }
 
-function publicUrlFor(rel) { // rel = "uploads/x.png"
-  return PUBLIC_UP + rel.slice("uploads/".length);
-}
-
-/* ---------- TinyMCE (WYSIWYG pane) ---------- */
-
-// vq typography for the editor iframe (mirrors the .markdown rules).
-const TMCE_CONTENT_CSS =
-  'body { font-family: "Plus Jakarta Sans", Inter, system-ui, sans-serif; font-size: 16px; line-height: 1.5; color: #0F172A; background: #FFFFFF; margin: 0; padding: 16px 20px; max-width: 880px; }' +
-  "h1, h2, h3, h4 { line-height: 1.25; margin: 20px 0 12px; font-weight: 700; }" +
-  "h1 { font-size: 24px; } h2 { font-size: 20px; } h3 { font-size: 16px; } h4 { font-size: 14px; }" +
-  "p { margin: 0 0 12px; }" +
-  "a { color: #0f556f; }" +
-  "code { font-family: \"JetBrains Mono\", monospace; font-size: 14px; background: #F1F5F9; padding: 2px 6px; border-radius: 8px; }" +
-  "pre { background: #F1F5F9; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 0 0 12px; }" +
-  "pre code { background: none; padding: 0; }" +
-  "ul, ol { margin: 0 0 12px; padding-left: 24px; }" +
-  "blockquote { margin: 0 0 12px; padding: 8px 16px; border-left: 3px solid #259dcc; color: #475569; }" +
-  "table { margin-bottom: 16px; border-collapse: collapse; }" +
-  "th, td { border: 1px solid #E2E8F0; padding: 8px 12px; }" +
-  "th { background: #F1F5F9; font-weight: 600; }" +
-  "img { max-width: 100%; border-radius: 8px; }" +
-  "hr { border: none; border-top: 1px solid #E2E8F0; margin: 16px 0; }";
-
-function initTinyMCE(initialMd) {
-  const md = initialMd != null ? initialMd : currentMd();
-  // TinyMCE takes its initial content from the textarea.
-  $("tinymce-src").value = htmlForEditor(md);
-  tinymce.init({
-    selector: "#tinymce-src",
-    base_url: "/static/vendor/tinymce",
-    suffix: ".min",
-    license_key: "gpl", // community edition
-    skin: "oxide",
-    theme: "silver",
-    branding: false,
-    statusbar: false,
-    menubar: false,
-    promotion: false,
-    content_css: false,
-    content_style: TMCE_CONTENT_CSS,
-    plugins: "image table link autolink fullscreen code codesample lists media",
-    toolbar:
-      "undo redo | bold italic underline strikethrough | formatselect | bullist numlist |" +
-      " link image table | code codesample | blockquote hr | fullscreen",
-    relative_urls: false,
-    // Paste/drop images from the OS clipboard -> existing /upload/<slug>
-    // endpoint; the returned URL is the public /post/... path so the image
-    // renders inside the editor iframe immediately.
-    images_upload_handler: (blobInfo) => {
-      const blob = blobInfo.blob();
-      const ext = IMG_EXT[blob.type] || ".png";
-      return uploadFile(new File([blob], "pasted" + ext, { type: blob.type }))
-        .then((j) => publicUrlFor(j.path));
-    },
-    setup: (editor) => {
-      editor.on("change setcontent undo redo", () => markDirty());
-    },
-  });
-}
-
-/* ---------- CodeMirror 6 (Markdown pane) ---------- */
+/* ---------- CodeMirror 6 (the editor) ---------- */
 
 const mdTheme = HighlightStyle.define([
   { tag: [t.heading1, t.heading2, t.heading3, t.heading4], fontWeight: "700", color: "#0f556f" },
@@ -216,7 +122,7 @@ const cmBaseTheme = EditorView.theme({
 
 function initCM(initialMd) {
   cmView = new EditorView({
-    doc: initialMd != null ? initialMd : currentMd(),
+    doc: initialMd != null ? initialMd : state.md,
     parent: cmHost,
     extensions: [
       basicSetup,
@@ -224,6 +130,8 @@ function initCM(initialMd) {
       syntaxHighlighting(mdTheme),
       EditorView.lineWrapping,
       cmBaseTheme,
+      // ponytail: current @codemirror/view exposes updateListener as a Facet,
+      // not a callable static - .of(fn) is the registered shape.
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
           state.md = u.state.doc.toString();
@@ -243,15 +151,13 @@ let previewTimer = 0;
 function schedulePreview() {
   clearTimeout(previewTimer);
   previewTimer = setTimeout(() => {
-    if (state.mode !== "md") return;
-    previewEl.innerHTML = htmlForDisplay(mdToHtml(cmView.state.doc.toString()));
+    if (!cmView) return;
+    previewEl.innerHTML = htmlForDisplay(cmView.state.doc.toString());
   }, 120); // debounce per-keystroke re-render
 }
 
 // Proportional scroll sync with a short re-entrancy guard: applying the
 // same ratio is idempotent, so the ping-pong dies after one round trip.
-// ponytail: no scroll-sync library; upgrade path: codemirror's
-// @replit/codemirror-vim-style sync lib if precision matters.
 let lastSyncAt = 0;
 function syncScroll(from, to) {
   const now = performance.now();
@@ -266,38 +172,6 @@ previewEl.addEventListener("scroll", () => {
   if (cmView) syncScroll(previewEl, cmView.scrollDOM);
 });
 
-/* ---------- mode switching (lossless) ---------- */
-
-const modeBtns = { wysiwyg: $("mode-wysiwyg"), md: $("mode-md") };
-
-function setMode(m) {
-  if (m === state.mode) return;
-  if (m === "md") {
-    const md = currentMd();
-    if (!cmView) initCM(md);
-    else cmView.dispatch({ changes: { from: 0, to: cmView.state.doc.length, insert: md } });
-    schedulePreview();
-  } else {
-    const md = currentMd();
-    if (!tinymce.get("tinymce-src")) initTinyMCE(md);
-    else tinymce.get("tinymce-src").setContent(htmlForEditor(md));
-  }
-  state.mode = m;
-  $("pane-wysiwyg").hidden = m !== "wysiwyg";
-  paneMd.hidden = m !== "md";
-  for (const k of Object.keys(modeBtns)) {
-    modeBtns[k].classList.toggle("is-active", k === m);
-    modeBtns[k].setAttribute("aria-pressed", String(k === m));
-  }
-  const tp = $("toggle-preview");
-  tp.hidden = m !== "md";
-  if (m === "md") requestAnimationFrame(() => cmView && cmView.focus());
-  else requestAnimationFrame(() => { const ed = tinymce.get("tinymce-src"); if (ed) ed.focus(); });
-}
-
-modeBtns.wysiwyg.addEventListener("click", () => setMode("wysiwyg"));
-modeBtns.md.addEventListener("click", () => setMode("md"));
-
 $("toggle-preview").addEventListener("click", () => {
   const hidden = paneMd.classList.toggle("is-preview-hidden");
   const btn = $("toggle-preview");
@@ -305,7 +179,7 @@ $("toggle-preview").addEventListener("click", () => {
   btn.setAttribute("aria-pressed", String(!hidden));
 });
 
-/* ---------- draggable divider (20–80%) ---------- */
+/* ---------- draggable divider (20-80%) ---------- */
 
 function setRatio(pct) {
   const clamped = Math.min(80, Math.max(20, pct));
@@ -339,11 +213,11 @@ divider.addEventListener("keydown", (e) => {
   setRatio(cur + (e.key === "ArrowRight" ? 2 : -2));
 });
 
-/* ---------- save (both modes -> markdown) ---------- */
+/* ---------- save (markdown, verbatim) ---------- */
 
 async function save() {
-  const body = currentMd(); // wysiwyg: turndown-converted; md: verbatim
-  setStatus("Saving…");
+  const body = currentMd();
+  setStatus("Saving...");
   const fd = new FormData();
   fd.append("lang", LANG);
   fd.append("title", $("f-title").value);
@@ -375,7 +249,7 @@ window.addEventListener("beforeunload", (e) => {
   }
 });
 
-/* ---------- title: inline (top row) <-> sidebar mirror ---------- */
+/* ---------- title: inline (top row) <-> panel mirror ---------- */
 
 const titleInline = $("title-inline");
 const fTitle = $("f-title");
@@ -395,20 +269,9 @@ titleInline.addEventListener("paste", (e) => {
 fTitle.addEventListener("input", () => { titleInline.textContent = fTitle.value; });
 ["f-desc", "f-tags"].forEach((id) => $(id).addEventListener("input", markDirty));
 
-/* ---------- image insertion (button / paste / drop, both modes) ---------- */
-
-function insertAtCursor(j) {
-  if (state.mode === "wysiwyg" && tinymce.get("tinymce-src")) {
-    tinymce.get("tinymce-src").insertContent(
-      '<p><img src="' + publicUrlFor(j.path) + '" alt=""></p>'
-    );
-  } else {
-    insertMd(j.snippet);
-  }
-}
+/* ---------- image insertion (button / paste / drop) ---------- */
 
 function insertMd(snippet) {
-  if (state.mode !== "md") setMode("md");
   if (!cmView) return;
   const from = cmView.state.selection.main.from;
   cmView.dispatch({
@@ -423,11 +286,11 @@ $("up-file").addEventListener("change", async (e) => {
   const f = e.target.files[0];
   e.target.value = "";
   if (!f) return;
-  try { insertAtCursor(await uploadFile(f)); }
+  try { insertMd((await uploadFile(f)).snippet); }
   catch (err) { setStatus("Upload failed: " + err.message); }
 });
 
-// Markdown pane: paste an image from the clipboard / drop a file.
+// Paste an image from the clipboard / drop a file onto the editor.
 cmHost.addEventListener("paste", (e) => {
   const items = e.clipboardData && e.clipboardData.items ? Array.from(e.clipboardData.items) : [];
   const img = items.find((i) => i.type && i.type.indexOf("image/") === 0);
@@ -435,7 +298,7 @@ cmHost.addEventListener("paste", (e) => {
   e.preventDefault();
   e.stopPropagation();
   uploadFile(fileFromClipboardItem(img))
-    .then(insertAtCursor)
+    .then((j) => insertMd(j.snippet))
     .catch((err) => setStatus("Upload failed: " + err.message));
 }, true);
 
@@ -446,21 +309,7 @@ cmHost.addEventListener("drop", (e) => {
   e.preventDefault();
   e.stopPropagation();
   uploadFile(f)
-    .then(insertAtCursor)
-    .catch((err) => setStatus("Upload failed: " + err.message));
-}, true);
-
-// WYSIWYG pane: file drop (TinyMCE already handles clipboard paste via
-// images_upload_handler).
-const paneWy = $("pane-wysiwyg");
-paneWy.addEventListener("dragover", (e) => { if (imageFileFrom(e)) e.preventDefault(); }, true);
-paneWy.addEventListener("drop", (e) => {
-  const f = imageFileFrom(e);
-  if (!f || !tinymce.get("tinymce-src")) return;
-  e.preventDefault();
-  e.stopPropagation();
-  uploadFile(f)
-    .then((j) => tinymce.get("tinymce-src").insertContent('<p><img src="' + publicUrlFor(j.path) + '" alt=""></p>'))
+    .then((j) => insertMd(j.snippet))
     .catch((err) => setStatus("Upload failed: " + err.message));
 }, true);
 
@@ -480,7 +329,7 @@ if (rawDraft) {
     draftLoaded = true;
     const db = $("draft-banner");
     if (db) db.hidden = false;
-    setStatus("Draft loaded — not saved yet");
+    setStatus("Draft loaded - not saved yet");
     markDirty();
   } catch (err) {
     setStatus("Draft load failed: " + err.message);
@@ -494,8 +343,8 @@ if (tBtn) {
   tBtn.addEventListener("click", () => {
     const orig = tBtn.innerHTML;
     tBtn.disabled = true;
-    tBtn.innerHTML = "Translating…";
-    setStatus("Translating…");
+    tBtn.innerHTML = "Translating...";
+    setStatus("Translating...");
     fetch("/api/translate/" + SLUG + "?lang=" + LANG, { method: "POST", credentials: "same-origin" })
       .then((res) => {
         if (!res.ok) return res.text().then((tx) => { throw new Error(tx); });
@@ -515,7 +364,9 @@ if (tBtn) {
 
 /* ---------- boot ---------- */
 
-// The textarea holds the markdown; only read it when no translated draft
-// was stashed for this slug+lang (the draft block above set state.md).
-if (!draftLoaded) state.md = $("tinymce-src").value;
-initTinyMCE(state.md); // default mode: WYSIWYG
+// The hidden md-src textarea holds the markdown as server-rendered it; only
+// read it when no translated draft was stashed for this slug+lang (the draft
+// block above set state.md).
+if (!draftLoaded) state.md = $("md-src").value;
+initCM(state.md);
+schedulePreview();

@@ -39,6 +39,7 @@ func main() {
 	}
 
 	http.HandleFunc("/login", handleLogin)
+	http.HandleFunc("/logout", handleLogout)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./ui/static"))))
 
 	// Protected routes
@@ -77,6 +78,12 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	pages["login"].ExecuteTemplate(w, "shell", data)
 }
 
+// handleLogout: clear the session cookie, send the user back to /login.
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{Name: "session_id", Value: "", MaxAge: -1, Path: "/", HttpOnly: true})
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -96,7 +103,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		data.GitBranch, data.GitAhead, data.GitBehind, data.GitDirty = st.Branch, st.Ahead, st.Behind, st.DirtyFiles
 		data.GitUpstream = st.HasUpstream
 	}
-	data.PageJS = template.JS(fmt.Sprintf(deployJS, cfg.BranchPages, cfg.BranchRelease))
+	data.PageJS = template.JS(fmt.Sprintf(deployJS, cfg.BranchPages))
 	pages["index"].ExecuteTemplate(w, "shell", data)
 }
 
@@ -114,20 +121,12 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 			cfg.LLMAPIKey = key
 		}
 		bp := strings.TrimSpace(r.FormValue("branch_pages"))
-		br := strings.TrimSpace(r.FormValue("branch_release"))
 		if bp != "" && !git.ValidRef(bp) {
 			http.Error(w, "branch_pages: invalid ref", http.StatusBadRequest)
 			return
 		}
-		if br != "" && !git.ValidRef(br) {
-			http.Error(w, "branch_release: invalid ref", http.StatusBadRequest)
-			return
-		}
 		if bp != "" {
 			cfg.BranchPages = bp
-		}
-		if br != "" {
-			cfg.BranchRelease = br
 		}
 		cfg.GitUser = strings.TrimSpace(r.FormValue("git_user"))
 		cfg.GitEmail = strings.TrimSpace(r.FormValue("git_email"))
@@ -139,8 +138,6 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := newShellData("Settings", "Settings", "settings")
-	data.BannerTitle = "Default admin password is \"admin\" (or HUGOSTACK_ADMIN_PASS in Docker)"
-	data.BannerCopy = "Change it: run `go run ./cmd/setpass 'newpass'` and put the printed hash into config.json (admin_pass), then restart. In Docker, first-run bootstrap reads HUGOSTACK_ADMIN_PASS."
 	data.HugoPath, data.Port, data.AdminUser = cfg.HugoPath, cfg.Port, cfg.AdminUser
 	data.LLMBaseURL, data.LLMModel, data.LLMKeySet = cfg.LLMBaseURL, cfg.LLMModel, cfg.LLMAPIKey != ""
 	data.LLMReady = llmReady()
@@ -370,7 +367,6 @@ func handleEdit(w http.ResponseWriter, r *http.Request) {
 	if isNew {
 		data.TitleDisplay = "New " + lang + " draft"
 	}
-	data.TMCEPlugins = []string{"image", "table", "link", "autolink", "fullscreen", "code", "codesample", "lists", "media"}
 	// Editor state for the external JS (ui/static/app/editor.js); the body
 	// itself ships in the textarea, so this stays small.
 	cfgJSON, err := json.Marshal(map[string]any{

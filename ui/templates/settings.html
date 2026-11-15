@@ -32,10 +32,6 @@
       <input id="branch_pages" name="branch_pages" value="{{.BranchPages}}" placeholder="main">
     </div>
     <div class="field">
-      <label class="field__label" for="branch_release">Release branch</label>
-      <input id="branch_release" name="branch_release" value="{{.BranchRelease}}" placeholder="hugo">
-    </div>
-    <div class="field">
       <label class="field__label" for="git_user">Git author name</label>
       <input id="git_user" name="git_user" value="{{.GitUser}}" placeholder="hugoStack">
     </div>
@@ -44,7 +40,7 @@
       <input id="git_email" name="git_email" value="{{.GitEmail}}" placeholder="hugostack@localhost">
     </div>
     <button class="btn btn--primary" type="submit">Save settings</button>
-    <p class="form__hint">LLM: any OpenAI-compatible /chat/completions endpoint. Deploy: "Sync to Pages" pushes to the Pages branch (GitHub Pages), "Release" pushes the release branch (vikipranata.is-a.dev). Git identity defaults to hugoStack / hugostack@localhost when blank.</p>
+    <p class="form__hint">LLM: any OpenAI-compatible /chat/completions endpoint. Deploy: Push sends the repo to the Pages branch (GitHub Pages). Git identity defaults to hugoStack / hugostack@localhost when blank.</p>
   </form>
 </div>
 {{end}}

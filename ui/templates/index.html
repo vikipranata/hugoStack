@@ -33,18 +33,19 @@
     {{else if .GitBranch}}{{.GitBranch}} · {{if .GitUpstream}}ahead {{.GitAhead}}, behind {{.GitBehind}}{{else}}no upstream{{end}} · {{.GitDirty}} file(s) modified
     {{else}}loading…{{end}}
   </p>
-  <div class="field">
-    <label class="field__label" for="commit-msg">Commit message</label>
-    <input id="commit-msg" placeholder="Update posts" autocomplete="off">
-  </div>
-  <div class="deploy-actions">
-    <button id="btn-commit" class="btn" type="button">Commit</button>
-    <button id="btn-pages" class="btn" type="button">Sync to Pages ({{.BranchPages}})</button>
-    <button id="btn-release" class="btn btn--primary" type="button">Release to is-a.dev ({{.BranchRelease}})</button>
-    <button id="btn-refresh" class="btn btn--ghost" type="button">Refresh</button>
+  <div class="deploy-row">
+    <div class="field deploy-row__field">
+      <label class="field__label" for="commit-msg">Commit message</label>
+      <input id="commit-msg" placeholder="Update posts" autocomplete="off">
+    </div>
+    <div class="deploy-row__actions">
+      <button id="btn-commit" class="btn" type="button">Commit</button>
+      <button id="btn-pages" class="btn btn--primary" type="button">Push to {{.BranchPages}}</button>
+      <button id="btn-refresh" class="btn btn--ghost" type="button">Refresh</button>
+    </div>
   </div>
   <div class="output" id="git-output" hidden></div>
-  <p class="form__hint">{{.BranchRelease}} branch → vikipranata.is-a.dev · {{.BranchPages}} → GitHub Pages. "Release" commits pending changes first (skipped when the tree is clean), then pushes the {{.BranchRelease}} branch.</p>
+  <p class="form__hint">Commit stages everything in the repo (git add -A). Push deploys to {{.BranchPages}} (GitHub Pages). Git identity defaults to hugoStack / hugostack@localhost when blank in Settings.</p>
 </div>
 {{end}}
 

@@ -31,8 +31,6 @@ type shellData struct {
 	// Computed in Go: html/template has no `in` function (its FuncMap
 	// predates Go 1.12's in).
 	MissingLangs []string
-	// TMCEPlugins: TinyMCE plugins loaded as local script tags.
-	TMCEPlugins []string
 	IsNew      bool // target file does not exist yet (unsaved draft)
 	LLMReady   bool // LLM config complete -> show translate button
 	TargetLang string
@@ -91,16 +89,16 @@ func initTemplates() error {
 
 var pageCSS template.CSS
 
-// deployJS is the Git & Deploy panel script. Args: pagesRef, releaseRef.
+// deployJS is the Git & Deploy panel script. Args: pagesRef (the deploy
+// branch; push target for "Push").
 // Status is server-rendered on page load, then polled (ponytail: 20s poll
 // = "live" for a single-user admin UI; upgrade path: SSE if it gets chatty).
 const deployJS = `
 (function () {
-  var PAGES_REF = %q, RELEASE_REF = %q;
+  var PAGES_REF = %q;
   var line = document.getElementById("git-status-line");
   var out = document.getElementById("git-output");
   if (!line) { return; }
-  var dirty = 0;
   function showOut(t, ok) {
     out.hidden = false;
     out.textContent = t;
@@ -113,7 +111,6 @@ const deployJS = `
       }); })
       .then(function (d) {
         if (!d.ok) { line.textContent = "git: " + (d.error || "status failed"); return; }
-        dirty = d.dirty;
         var up = d.upstream ? ("ahead " + d.ahead + ", behind " + d.behind) : "no upstream";
         line.textContent = d.branch + " · " + up + " · " + d.dirty + " file(s) modified";
       })
@@ -154,20 +151,6 @@ const deployJS = `
   });
   document.getElementById("btn-pages").addEventListener("click", function () {
     run(this, "Pushing to " + PAGES_REF, api("/api/git/push?ref=" + encodeURIComponent(PAGES_REF)));
-  });
-  // Release = commit pending changes (skipped when the tree is clean),
-  // then push the release branch.
-  document.getElementById("btn-release").addEventListener("click", function () {
-    var self = this;
-    var p = Promise.resolve({ ok: true });
-    if (dirty > 0) {
-      var m = msg.value.trim() || ("Release " + new Date().toISOString().slice(0, 16).replace("T", " "));
-      p = api("/api/git/commit", { message: m });
-    }
-    run(self, "Releasing to " + RELEASE_REF, p.then(function (d) {
-      if (!d.ok) { return d; }
-      return api("/api/git/push?ref=" + encodeURIComponent(RELEASE_REF));
-    }));
   });
   document.getElementById("btn-refresh").addEventListener("click", refreshStatus);
   refreshStatus();

@@ -90,6 +90,20 @@ body {
 .topbar__left { display: flex; align-items: center; gap: var(--style-spacing-2); }
 .topbar__brand { font-size: var(--style-text-base); font-weight: 700; letter-spacing: -0.01em; }
 .topbar__brand em { font-style: normal; color: var(--style-text-brand); }
+.topbar__right { display: flex; align-items: center; gap: var(--style-spacing-2); }
+.topbar__action {
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--style-radius-md);
+  font-size: var(--style-text-sm);
+  font-weight: 500;
+  color: var(--style-text-secondary);
+  text-decoration: none;
+  transition: background var(--style-motion), color var(--style-motion), border-color var(--style-motion);
+}
+.topbar__action:hover { background: var(--style-bg-surface-muted); color: var(--style-text-primary); }
+.topbar__action--danger:hover { background: rgba(220, 38, 38, 0.08); color: var(--style-status-danger-text); }
+.topbar__action:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(37, 157, 220, 0.32); }
 
 /* Hamburger (CSS-drawn, no icon font) */
 .hamburger {
@@ -169,6 +183,42 @@ body {
   max-width: 1440px;
   padding: var(--style-page-padding);
 }
+
+/* Login: centered card on the remaining viewport (BookStack-style) */
+/* login is the only page whose card must center on the FULL viewport, so
+   lift the content max-width there. */
+.main:has(.login-wrap) { max-width: none; }
+.login-wrap {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - var(--style-topbar-height) - 2 * var(--style-page-padding));
+  padding: var(--style-page-padding) 0;
+}
+.login-card { width: 100%; max-width: 400px; }
+.login-card__title { margin: 0 0 var(--style-spacing-4); font-size: var(--style-text-xl); }
+.login-card__btn { width: 100%; margin-top: var(--style-spacing-2); }
+
+/* Toast (login success/error) */
+.toast {
+  position: fixed;
+  top: calc(var(--style-topbar-height) + var(--style-spacing-3));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: min(480px, calc(100vw - 32px));
+  padding: 10px 18px;
+  border-radius: var(--style-radius-md);
+  font-size: var(--style-text-sm);
+  font-weight: 500;
+  box-shadow: var(--style-shadow-md);
+  animation: toast-in 180ms ease-out;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.toast--success { background: #065f46; color: #ecfdf5; }
+.toast--error { background: #991b1b; color: #fef2f2; }
 
 /* Breadcrumb */
 .breadcrumb {
@@ -360,6 +410,9 @@ td.value {
 }
 .form__head h2 { margin: 0; font-size: var(--style-text-xl); font-weight: 700; line-height: var(--style-leading-tight); }
 .form__hint { margin: var(--style-spacing-3) 0 0; font-size: var(--style-text-xs); color: var(--style-text-muted); }
+.deploy-row { display: flex; flex-wrap: wrap; gap: var(--style-spacing-3); align-items: flex-end; margin-bottom: var(--style-spacing-4); }
+.deploy-row__field { flex: 1 1 320px; }
+.deploy-row__actions { display: flex; flex-wrap: wrap; gap: var(--style-spacing-2); }
 .deploy-actions { display: flex; flex-wrap: wrap; gap: var(--style-spacing-2); }
 .deploy-status {
   margin: 0 0 var(--style-spacing-4);
@@ -598,32 +651,6 @@ td.value {
 }
 .editorpage .banner { margin-bottom: var(--style-spacing-3); }
 
-/* WYSIWYG pane: TinyMCE fills the pane, iframe scrolls internally.
-   !important beats TinyMCE's inline auto-resize heights. */
-#pane-wysiwyg { position: relative; }
-#pane-wysiwyg .tox-tinymce {
-  width: 100%;
-  height: 100% !important;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  display: flex;
-  flex-direction: column;
-  font-family: var(--style-font-sans);
-  --tox-border-color: var(--style-border-default);
-}
-#pane-wysiwyg .tox-editor-container { flex: 1 1 auto; display: flex; min-height: 0; }
-#pane-wysiwyg .tox-editor-container > iframe {
-  flex: 1 1 auto;
-  width: 100%;
-  height: 100% !important;
-  min-height: 0;
-  border: 0;
-}
-#pane-wysiwyg .tox .tox-tbtn:hover,
-#pane-wysiwyg .tox .tox-tbtn--enabled,
-#pane-wysiwyg .tox .tox-mbtn:hover { background: var(--style-bg-surface-muted); }
-
 /* Markdown pane: CodeMirror | divider | preview */
 .mdsplit { --mdsplit-ratio: 50%; }
 .mdsplit__src {
@@ -656,7 +683,7 @@ td.value {
 .mdsplit.is-preview-hidden .mdsplit__divider { display: none; }
 .mdsplit.is-preview-hidden .mdsplit__src { width: 100%; }
 
-/* Right sidebar (>=1100px: side-by-side; below: card under the editor) */
+/* Post-details panel (>=1100px: left of the editor; below: stacked on top) */
 .editorpage__side { overflow-y: auto; }
 .side-card { margin-bottom: 0; padding: var(--style-spacing-4) var(--style-spacing-4) var(--style-spacing-4); display: flex; flex-direction: column; gap: var(--style-spacing-4); }
 .side-card__title {

@@ -22,21 +22,28 @@
     {{end}}
     <div class="topbar__brand">Hugo<em>Stack</em></div>
   </div>
+  {{if not .NoNav}}
+  <div class="topbar__right">
+    <a class="topbar__action" href="/settings">Settings</a>
+    <a class="topbar__action topbar__action--danger" href="/logout">Log out</a>
+  </div>
+  {{end}}
 </header>
 <div class="shell" data-menu="open">
   {{if not .NoNav}}
   <aside class="sidebar" id="module-menu">
     <nav class="sidebar__nav" aria-label="Modules">
       <a class="nav-item{{if eq .Active "posts"}} is-active{{end}}" href="/">Posts</a>
-      <a class="nav-item{{if eq .Active "settings"}} is-active{{end}}" href="/settings">Settings</a>
     </nav>
   </aside>
   {{end}}
   <main class="main">
+    {{if not .NoNav}}
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <a href="/">Hugo</a>
       {{if .BreadcrumbCurrent}}<span class="breadcrumb__sep">/</span><span class="breadcrumb__current">{{.BreadcrumbCurrent}}</span>{{end}}
     </nav>
+    {{end}}
     {{if .BannerTitle}}
     <div class="error" role="alert">
       <p class="error__title">{{.BannerTitle}}</p>

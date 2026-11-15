@@ -1,11 +1,60 @@
 {{define "body"}}
-<div class="card form-card">
-  <h2 style="margin:0 0 16px">Sign in</h2>
-  <form class="form" method="POST">
-    <div class="field"><label class="field__label" for="user">User</label><input id="user" name="user" autocomplete="username"></div>
-    <div class="field"><label class="field__label" for="pass">Password</label><input id="pass" name="pass" type="password" autocomplete="current-password"></div>
-    <div class="actions"><button class="btn btn--primary" type="submit">Login</button></div>
-  </form>
+<div class="login-wrap">
+  <div class="card login-card">
+    <h1 class="login-card__title">Log in</h1>
+    <form id="login-form" class="form" method="POST" action="/login">
+      <div class="field">
+        <label class="field__label" for="user">Username</label>
+        <input id="user" name="user" autocomplete="username" autofocus>
+      </div>
+      <div class="field">
+        <label class="field__label" for="pass">Password</label>
+        <input id="pass" name="pass" type="password" autocomplete="current-password">
+      </div>
+      <button id="login-btn" class="btn btn--primary login-card__btn" type="submit">Log in</button>
+    </form>
+  </div>
 </div>
+<div id="toast" class="toast" role="alert" aria-live="polite" hidden></div>
+<script>
+(function () {
+  var form = document.getElementById("login-form");
+  var btn = document.getElementById("login-btn");
+  var toast = document.getElementById("toast");
+  var timer = 0;
+  function showToast(msg, ok) {
+    clearTimeout(timer);
+    toast.textContent = msg;
+    toast.className = "toast toast--" + (ok ? "success" : "error");
+    toast.hidden = false;
+    timer = setTimeout(function () { toast.hidden = true; }, 3500);
+  }
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    btn.disabled = true;
+    var orig = btn.textContent;
+    btn.textContent = "Logging in…";
+    fetch(form.action, {
+      method: "POST",
+      body: new FormData(form),
+      credentials: "same-origin",
+    }).then(function (res) {
+      // server answers 303 + cookie on success (fetch follows to / -> 200),
+      // 401 on bad credentials.
+      if (res.ok) {
+        showToast("Signed in — welcome back", true);
+        setTimeout(function () { location.href = "/"; }, 1000);
+      } else {
+        showToast("Invalid username or password", false);
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    }).catch(function (err) {
+      showToast("Login failed: " + err.message, false);
+      btn.disabled = false;
+      btn.textContent = orig;
+    });
+  });
+})();
+</script>
 {{end}}
-
