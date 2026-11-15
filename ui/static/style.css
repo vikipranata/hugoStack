@@ -117,19 +117,26 @@ body {
    .is-preview-hidden on #pane-md) - the split view wants the extra room. */
 .main:has(#pane-md:not(.is-preview-hidden)) { max-width: none; margin: 0; }
 
-/* Login: centered card on the remaining viewport (BookStack-style) */
-/* login is the only page whose card must center on the FULL viewport, so
-   lift the content max-width there. */
-.main:has(.login-wrap) { max-width: none; }
+/* Login: standalone full-viewport centered card (homelab-console style) */
 .login-wrap {
-  display: grid;
-  place-items: center;
-  min-height: calc(100vh - var(--style-topbar-height) - 2 * var(--style-page-padding));
-  padding: var(--style-page-padding) 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--style-spacing-4);
 }
-.login-card { width: 100%; max-width: 400px; }
-.login-card__title { margin: 0 0 var(--style-spacing-4); font-size: var(--style-text-xl); }
-.login-card__btn { width: 100%; margin-top: var(--style-spacing-2); }
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  margin: 0;
+  padding: var(--style-spacing-6);
+  box-shadow: var(--style-shadow-md);
+}
+.login-brand { font-size: var(--style-text-xl); font-weight: 700; letter-spacing: -0.01em; }
+.login-brand em { font-style: normal; color: var(--style-text-brand); }
+.login-sub { margin: 4px 0 var(--style-spacing-6); font-size: var(--style-text-sm); color: var(--style-text-secondary); }
+.login-card .form { max-width: none; }
+.login-card .btn { width: 100%; }
 
 /* Toast (login success/error) */
 .toast {

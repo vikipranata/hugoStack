@@ -1,17 +1,18 @@
 {{define "body"}}
 <div class="login-wrap">
   <div class="card login-card">
-    <h1 class="login-card__title">Log in</h1>
-    <form id="login-form" class="form" method="POST" action="/login">
+    <div class="login-brand">Hugo<em>Stack</em></div>
+    <p class="login-sub">Sign in to manage your Hugo content.</p>
+    <form id="login-form" class="form" method="POST" action="/login" autocomplete="on">
       <div class="field">
         <label class="field__label" for="user">Username</label>
-        <input id="user" name="user" autocomplete="username" autofocus>
+        <input id="user" name="user" type="text" autocomplete="username" required autofocus>
       </div>
       <div class="field">
         <label class="field__label" for="pass">Password</label>
-        <input id="pass" name="pass" type="password" autocomplete="current-password">
+        <input id="pass" name="pass" type="password" autocomplete="current-password" required>
       </div>
-      <button id="login-btn" class="btn btn--primary login-card__btn" type="submit">Log in</button>
+      <button id="login-btn" class="btn btn--primary" type="submit">Sign in</button>
     </form>
   </div>
 </div>
@@ -33,21 +34,20 @@
     e.preventDefault();
     btn.disabled = true;
     var orig = btn.textContent;
-    btn.textContent = "Logging in…";
+    btn.textContent = "Signing in\u2026";
     fetch(form.action, {
       method: "POST",
       body: new FormData(form),
       credentials: "same-origin",
     }).then(function (res) {
-      // server answers 303 + cookie on success (fetch follows to / -> 200),
-      // 401 on bad credentials.
       if (res.ok) {
-        showToast("Signed in — welcome back", true);
-        setTimeout(function () { location.href = "/"; }, 1000);
+        showToast("Signed in \u2014 welcome back", true);
+        setTimeout(function () { location.replace("/"); }, 1000);
       } else {
         showToast("Invalid username or password", false);
         btn.disabled = false;
         btn.textContent = orig;
+        document.getElementById("pass").focus();
       }
     }).catch(function (err) {
       showToast("Login failed: " + err.message, false);

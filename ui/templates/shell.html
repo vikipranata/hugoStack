@@ -11,28 +11,25 @@
 <style>{{.CSS}}</style>
 </head>
 <body>
+{{if .NoNav}}
+{{template "body" .}}
+{{else}}
 <header class="topbar">
   <div class="topbar__left">
     <div class="topbar__brand">Hugo<em>Stack</em></div>
-    {{if not .NoNav}}
     <nav class="topbar__nav" aria-label="Main">
       <a class="topbar__action{{if eq .Active "posts"}} is-active{{end}}" href="/">Posts</a>
       <a class="topbar__action{{if eq .Active "settings"}} is-active{{end}}" href="/settings">Settings</a>
     </nav>
-    {{end}}
   </div>
-  {{if not .NoNav}}
   <a class="topbar__action topbar__action--danger" href="/logout">Log out</a>
-  {{end}}
 </header>
 <div class="shell">
   <main class="main">
-    {{if not .NoNav}}
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <a href="/">Hugo</a>
       {{if .BreadcrumbCurrent}}<span class="breadcrumb__sep">/</span><span class="breadcrumb__current">{{.BreadcrumbCurrent}}</span>{{end}}
     </nav>
-    {{end}}
     {{if .BannerTitle}}
     <div class="error" role="alert">
       <p class="error__title">{{.BannerTitle}}</p>
@@ -42,6 +39,7 @@
     {{template "body" .}}
   </main>
 </div>
+{{end}}
 {{if .PageJS}}
 <script>{{.PageJS}}</script>
 {{end}}
