@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -353,6 +354,11 @@ func handleEdit(w http.ResponseWriter, r *http.Request) {
 	data.Lang = lang
 	data.FileName = langFiles[lang]
 	data.Langs = langList
+	for _, l := range []string{"en", "id"} {
+		if !slices.Contains(langList, l) {
+			data.MissingLangs = append(data.MissingLangs, l)
+		}
+	}
 	data.TitleDisplay = browser.TitleOf(string(raw))
 	data.TitleValue = browser.TitleOf(string(raw))
 	data.TagsCSV = strings.Join(browser.TagsOf(string(raw)), ", ")
@@ -364,7 +370,18 @@ func handleEdit(w http.ResponseWriter, r *http.Request) {
 	if isNew {
 		data.TitleDisplay = "New " + lang + " draft"
 	}
-	data.PageJS = template.JS(fmt.Sprintf(editorJS, slug, lang, llmReady(), otherLang(lang)))
+	data.TMCEPlugins = []string{"image", "table", "link", "autolink", "fullscreen", "code", "codesample", "lists", "media"}
+	// Editor state for the external JS (ui/static/app/editor.js); the body
+	// itself ships in the textarea, so this stays small.
+	cfgJSON, err := json.Marshal(map[string]any{
+		"slug": slug, "lang": lang, "isNew": isNew,
+		"llmReady": llmReady(), "targetLang": otherLang(lang),
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data.EditorConfigJSON = template.JS(cfgJSON)
 	pages["editor"].ExecuteTemplate(w, "shell", data)
 }
 

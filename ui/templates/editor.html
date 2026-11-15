@@ -1,56 +1,86 @@
 {{define "body"}}
-<div class="pageheader">
-  <div>
-    <h1>{{.TitleDisplay}}</h1>
-    <p class="pageheader__desc">content/posts/{{.Slug}}/{{.FileName}}</p>
-  </div>
-  <div class="actions">
-    {{range .Langs}}<a class="btn btn--sm {{if eq . $.Lang}}btn--primary{{else}}btn--ghost{{end}}" href="/edit/{{$.Slug}}?lang={{.}}">{{.}}</a>{{end}}
-  </div>
-</div>
-<div class="card form-card">
-  <div class="form form--wide">
-    <div class="field">
-      <label class="field__label" for="f-title">Title</label>
-      <input id="f-title" name="title" value="{{.TitleValue}}">
+<div class="editorpage">
+  <div class="editorpage__top">
+    <div class="editorpage__ident">
+      <h1 class="editorpage__title" id="title-inline" contenteditable="true" spellcheck="false" aria-label="Post title (editable)">{{.TitleDisplay}}</h1>
+      <span class="editorpage__path">content/posts/{{.Slug}}/{{.FileName}}</span>
     </div>
-    <div class="field">
-      <label class="field__label" for="f-tags">Tags</label>
-      <input id="f-tags" name="tags" value="{{.TagsCSV}}" placeholder="comma, separated">
-    </div>
-    <div class="field">
-      <label class="field__label" for="f-desc">Description</label>
-      <input id="f-desc" name="description" value="{{.DescValue}}">
-    </div>
-  </div>
-</div>
-{{if .IsNew}}
-<div class="banner" id="draft-banner" role="alert">
-  <p class="banner__title">New {{.Lang}} draft</p>
-  <p class="banner__copy">content/posts/{{.Slug}}/{{.FileName}} does not exist yet — Save creates it.</p>
-</div>
-{{else}}
-<div class="banner" id="draft-banner" role="alert" hidden>
-  <p class="banner__title">Translated draft — review then Save</p>
-  <p class="banner__copy">The translation below is not saved yet.</p>
-</div>
-{{end}}
-<div class="card editor" id="editor">
-  <div class="editor__toolbar">
-    <div class="editor__views" role="group" aria-label="Editor view">
-      <button class="btn btn--primary btn--sm" id="view-md" type="button" aria-pressed="true">Markdown</button>
-      <button class="btn btn--ghost btn--sm" id="view-preview" type="button" aria-pressed="false">Preview</button>
-    </div>
-    <div class="editor__tools">
-      <input type="file" id="up-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+    <div class="editorpage__actions">
+      <span class="editorpage__status" id="save-status" role="status"></span>
       {{if .LLMReady}}<button class="btn btn--ghost btn--sm" id="translate-btn" type="button">Translate to {{.TargetLang}}</button>{{end}}
       <button class="btn btn--ghost btn--sm" id="up-btn" type="button">Upload image</button>
-      <span class="save-status" id="save-status" role="status"></span>
       <button class="btn btn--primary" id="save-btn" type="button">Save</button>
     </div>
   </div>
-  <textarea class="editor__src" id="editor-src" spellcheck="false" aria-label="Markdown source">{{.BodyText}}</textarea>
-  <div class="editor__preview markdown" id="editor-preview" hidden></div>
+  <div class="editorpage__controls">
+    <div class="seg" role="group" aria-label="Editor mode">
+      <button class="seg__btn is-active" id="mode-wysiwyg" type="button" aria-pressed="true">WYSIWYG</button>
+      <button class="seg__btn" id="mode-md" type="button" aria-pressed="false">Markdown</button>
+    </div>
+    <div class="seg" role="group" aria-label="Language">
+      {{range .Langs}}<a class="seg__btn{{if eq . $.Lang}} is-active{{end}}" href="/edit/{{$.Slug}}?lang={{.}}">{{.}}</a>{{end}}
+      {{range .MissingLangs}}<a class="seg__btn seg__btn--add" href="/edit/{{$.Slug}}?lang={{.}}">+ {{.}}</a>{{end}}
+    </div>
+    <button class="btn btn--ghost btn--sm" id="toggle-preview" type="button" hidden aria-pressed="true">Hide preview</button>
+  </div>
+  {{if .IsNew}}
+  <div class="banner" id="draft-banner" role="alert">
+    <p class="banner__title">New {{.Lang}} draft</p>
+    <p class="banner__copy">content/posts/{{.Slug}}/{{.FileName}} does not exist yet — Save creates it.</p>
+  </div>
+  {{else}}
+  <div class="banner" id="draft-banner" role="alert" hidden>
+    <p class="banner__title">Translated draft — review then Save</p>
+    <p class="banner__copy">The translation below is not saved yet.</p>
+  </div>
+  {{end}}
+  <div class="editorpage__layout">
+    <div class="editorpage__main">
+      <div class="editorpage__pane" id="pane-wysiwyg">
+        <textarea id="tinymce-src" aria-label="Post body (WYSIWYG)">{{.BodyText}}</textarea>
+      </div>
+      <div class="editorpage__pane mdsplit" id="pane-md" hidden>
+        <div class="mdsplit__src" id="cm-host"></div>
+        <div class="mdsplit__divider" id="mdsplit-divider" role="separator" aria-orientation="vertical" aria-label="Resize source and preview panes (arrow keys)" tabindex="0"></div>
+        <div class="mdsplit__preview markdown" id="editor-preview"></div>
+      </div>
+    </div>
+    <aside class="editorpage__side" aria-label="Post details">
+      <div class="card side-card">
+        <h2 class="side-card__title">Post details</h2>
+        <div class="field">
+          <label class="field__label" for="f-title">Title</label>
+          <input id="f-title" value="{{.TitleValue}}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="f-desc">Description</label>
+          <textarea id="f-desc" rows="3">{{.DescValue}}</textarea>
+        </div>
+        <div class="field">
+          <label class="field__label" for="f-tags">Tags</label>
+          <input id="f-tags" value="{{.TagsCSV}}" placeholder="comma, separated">
+        </div>
+        <div class="field">
+          <label class="field__label" for="side-file">File</label>
+          <span class="side-card__path" id="side-file">content/posts/{{.Slug}}/{{.FileName}}</span>
+        </div>
+        <div class="field">
+          <label class="field__label" for="side-langs">Languages</label>
+          <div class="side-card__chips">
+            {{range .Langs}}<span class="chip{{if eq . $.Lang}} chip--success{{end}}">{{.}}</span>{{end}}
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
 </div>
+<input type="file" id="up-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+<script src="/static/vendor/tinymce/tinymce.min.js"></script>
+<script src="/static/vendor/tinymce/theme/silver/theme.min.js"></script>
+{{range .TMCEPlugins}}<script src="/static/vendor/tinymce/plugins/{{.}}/plugin.min.js"></script>
+{{end}}<script src="/static/vendor/turndown/turndown.min.js"></script>
+<script src="/static/vendor/turndown/turndown-plugin-gfm.min.js"></script>
+<script src="/static/vendor/marked/marked.min.js"></script>
+<script type="application/json" id="editor-config">{{.EditorConfigJSON}}</script>
+<script type="module" src="/static/app/editor.js"></script>
 {{end}}
-

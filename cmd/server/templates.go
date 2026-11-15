@@ -27,6 +27,12 @@ type shellData struct {
 	Lang       string
 	FileName   string
 	Langs      []string
+	// MissingLangs: languages without a file yet -> "+ lang" add buttons.
+	// Computed in Go: html/template has no `in` function (its FuncMap
+	// predates Go 1.12's in).
+	MissingLangs []string
+	// TMCEPlugins: TinyMCE plugins loaded as local script tags.
+	TMCEPlugins []string
 	IsNew      bool // target file does not exist yet (unsaved draft)
 	LLMReady   bool // LLM config complete -> show translate button
 	TargetLang string
@@ -40,6 +46,7 @@ type shellData struct {
 	TagsCSV      string
 	DescValue    string
 	BodyText     string
+	EditorConfigJSON template.JS
 	// git & deploy (Story 4.2)
 	GitBranch     string
 	GitAhead      int
@@ -83,159 +90,6 @@ func initTemplates() error {
 }
 
 var pageCSS template.CSS
-
-// editorJS is the editor page script. Args: slug, lang, llmReady, target.
-// ponytail: live preview (marked.js CDN) instead of a full WYSIWYG
-// rich-text library — no build step, one CDN tag. Upgrade path:
-// CodeMirror 6 if syntax highlighting becomes a real need.
-const editorJS = `
-(function () {
-  var SLUG = %q, LANG = %q, LLM_READY = %t, TARGET = %q;
-  var src = document.getElementById("editor-src");
-  var preview = document.getElementById("editor-preview");
-  var bMd = document.getElementById("view-md");
-  var bPrev = document.getElementById("view-preview");
-  var status = document.getElementById("save-status");
-  var view = "md";
-  function esc(s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
-  function render() {
-    var md = src.value;
-    // relative uploads/ links -> served via /post/<slug>/uploads/
-    md = md.replace(/src="uploads\//g, 'src="/post/' + SLUG + '/uploads/');
-    md = md.replace(/\]\(uploads\//g, '](/post/' + SLUG + '/uploads/');
-    preview.innerHTML = window.marked ? marked.parse(md) : esc(md);
-  }
-  function setView(v) {
-    view = v;
-    if (v === "preview") {
-      render();
-      src.hidden = true; preview.hidden = false;
-      bPrev.className = "btn btn--primary btn--sm"; bPrev.setAttribute("aria-pressed", "true");
-      bMd.className = "btn btn--ghost btn--sm"; bMd.setAttribute("aria-pressed", "false");
-    } else {
-      src.hidden = false; preview.hidden = true;
-      bMd.className = "btn btn--primary btn--sm"; bMd.setAttribute("aria-pressed", "true");
-      bPrev.className = "btn btn--ghost btn--sm"; bPrev.setAttribute("aria-pressed", "false");
-    }
-  }
-  bMd.addEventListener("click", function () { setView("md"); });
-  bPrev.addEventListener("click", function () { setView("preview"); });
-  src.addEventListener("input", function () { if (view === "preview") render(); });
-
-  document.getElementById("save-btn").addEventListener("click", function () {
-    status.textContent = "Saving…";
-    var fd = new FormData();
-    fd.append("lang", LANG);
-    fd.append("title", document.getElementById("f-title").value);
-    fd.append("tags", document.getElementById("f-tags").value);
-    fd.append("description", document.getElementById("f-desc").value);
-    fd.append("body", src.value);
-    fetch("/edit/" + SLUG, { method: "POST", body: fd, credentials: "same-origin" })
-      .then(function (res) {
-        if (!res.ok) { return res.text().then(function (t) { throw new Error(t); }); }
-        status.textContent = "Saved";
-      })
-      .catch(function (e) { status.textContent = "Save failed: " + e.message; });
-  });
-
-  function insertSnippet(s) {
-    if (view === "preview") { setView("md"); }
-    var start = src.selectionStart, end = src.selectionEnd;
-    src.setRangeText(s, start, end, "end");
-    src.focus();
-  }
-  async function uploadFile(file) {
-    status.textContent = "Uploading " + file.name + "…";
-    var fd = new FormData();
-    fd.append("file", file);
-    var res = await fetch("/upload/" + SLUG, { method: "POST", body: fd, credentials: "same-origin" });
-    if (!res.ok) { throw new Error(await res.text()); }
-    var j = await res.json();
-    insertSnippet(j.snippet);
-    status.textContent = "Inserted " + j.path;
-  }
-  document.getElementById("up-btn").addEventListener("click", function () {
-    document.getElementById("up-file").click();
-  });
-  document.getElementById("up-file").addEventListener("change", function (e) {
-    if (e.target.files[0]) {
-      uploadFile(e.target.files[0]).catch(function (er) { status.textContent = "Upload failed: " + er.message; });
-    }
-    e.target.value = "";
-  });
-  var editor = document.getElementById("editor");
-  editor.addEventListener("dragover", function (e) { e.preventDefault(); });
-  editor.addEventListener("drop", function (e) {
-    e.preventDefault();
-    var f = Array.from(e.dataTransfer.files).find(function (f) { return f.type.indexOf("image/") === 0; });
-    if (f) { uploadFile(f).catch(function (er) { status.textContent = "Upload failed: " + er.message; }); }
-  });
-  // Translated draft handoff: the translate button stashes the result in
-  // sessionStorage and redirects here; load it into the form as an unsaved
-  // draft (story 3.3). Nothing is saved until the user hits Save.
-  var draftKey = "hugostack-draft:" + SLUG + ":" + LANG;
-  var rawDraft = sessionStorage.getItem(draftKey);
-  if (rawDraft) {
-    sessionStorage.removeItem(draftKey);
-    try {
-      var d = JSON.parse(rawDraft);
-      document.getElementById("f-title").value = d.title || "";
-      document.getElementById("f-tags").value = (d.tags || []).join(", ");
-      document.getElementById("f-desc").value = d.description || "";
-      src.value = d.body || "";
-      var db = document.getElementById("draft-banner");
-      if (db) {
-        db.hidden = false;
-        var bt = db.querySelector(".banner__title");
-        if (bt) { bt.textContent = "Translated draft — review then Save"; }
-      }
-      status.textContent = "Draft loaded — not saved yet";
-      if (view === "preview") { render(); }
-    } catch (e) { status.textContent = "Draft load failed: " + e.message; }
-  }
-
-  // paste image from clipboard -> base64 -> uploads/
-  src.addEventListener("paste", function (e) {
-    var items = e.clipboardData ? e.clipboardData.items : [];
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image/") === 0) {
-        e.preventDefault();
-        var blob = items[i].getAsFile();
-        var ext = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif" }[blob.type] || ".png";
-        uploadFile(new File([blob], "pasted" + ext, { type: blob.type })).catch(function (er) { status.textContent = "Upload failed: " + er.message; });
-        return;
-      }
-    }
-  });
-
-  // Story 3.3: translate button (rendered only when LLM config is set).
-  // POSTs to /api/translate/<slug>, stashes the returned draft, then opens
-  // the target-lang editor which loads it as an unsaved draft. No auto-save.
-  var tBtn = document.getElementById("translate-btn");
-  if (tBtn) {
-    tBtn.addEventListener("click", function () {
-      var orig = tBtn.innerHTML;
-      tBtn.disabled = true;
-      tBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Translating…';
-      status.textContent = "Translating…";
-      fetch("/api/translate/" + SLUG + "?lang=" + LANG, { method: "POST", credentials: "same-origin" })
-        .then(function (res) {
-          if (!res.ok) { return res.text().then(function (t) { throw new Error(t); }); }
-          return res.json();
-        })
-        .then(function (d) {
-          sessionStorage.setItem("hugostack-draft:" + SLUG + ":" + d.lang, JSON.stringify(d));
-          location.href = "/edit/" + SLUG + "?lang=" + d.lang;
-        })
-        .catch(function (e) {
-          tBtn.disabled = false;
-          tBtn.innerHTML = orig;
-          status.textContent = "Translate failed: " + e.message;
-        });
-    });
-  }
-})();
-`
 
 // deployJS is the Git & Deploy panel script. Args: pagesRef, releaseRef.
 // Status is server-rendered on page load, then polled (ponytail: 20s poll
