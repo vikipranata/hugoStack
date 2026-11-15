@@ -224,7 +224,7 @@ function initCM(initialMd) {
       syntaxHighlighting(mdTheme),
       EditorView.lineWrapping,
       cmBaseTheme,
-      EditorView.updateListener((u) => {
+      EditorView.updateListener.of((u) => {
         if (u.docChanged) {
           state.md = u.state.doc.toString();
           markDirty();
